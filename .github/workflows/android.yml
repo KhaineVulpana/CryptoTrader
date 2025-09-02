@@ -14,7 +14,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug: list workspace and show gradlew header
+      - name: "Debug: list workspace and show gradlew header"
         run: |
           ls -la
           if [ -f ./gradlew ]; then

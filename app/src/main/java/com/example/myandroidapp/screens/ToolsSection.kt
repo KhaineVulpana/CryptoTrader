@@ -22,3 +22,8 @@ fun ToolsSection(viewModel: SharedAppViewModel) {
         }
     }
 }
+
+@Composable
+fun AutomationScreen(viewModel: SharedAppViewModel) {
+    Text("Automation Screen Placeholder")
+}
