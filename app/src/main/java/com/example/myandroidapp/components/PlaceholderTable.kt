@@ -7,10 +7,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun PlaceholderTable(rows: Int = 10, columns: Int = 4) {
+fun PlaceholderTable(rows: Int = 10, columns: Int = 4, rowHeight: Dp = 24.dp) {
     Column(Modifier.fillMaxWidth()) {
         repeat(rows) { row ->
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -18,7 +19,7 @@ fun PlaceholderTable(rows: Int = 10, columns: Int = 4) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(24.dp)
+                            .height(rowHeight)
                             .background(Color.LightGray)
                             .padding(4.dp)
                     ) {
