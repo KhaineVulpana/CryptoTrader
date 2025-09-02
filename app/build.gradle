@@ -13,7 +13,6 @@ android {
         versionName "1.0"
     }
     buildFeatures { compose true }
-    composeOptions { kotlinCompilerExtensionVersion '1.2.1' }
     kotlinOptions { jvmTarget = '17' }
 }
 dependencies {
