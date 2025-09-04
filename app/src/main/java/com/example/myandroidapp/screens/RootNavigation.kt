@@ -1,11 +1,13 @@
 package com.example.myandroidapp.screens
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -14,6 +16,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import com.example.myandroidapp.shared.SharedAppViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RootNavigation() {
     val navController = rememberNavController()
