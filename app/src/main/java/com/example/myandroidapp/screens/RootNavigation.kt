@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,6 +21,19 @@ fun RootNavigation() {
     val viewModel: SharedAppViewModel = viewModel()
 
     Scaffold(
+        topBar = {
+            SmallTopAppBar(
+                title = {},
+                actions = {
+                    IconButton(onClick = { /* TODO: profile */ }) {
+                        Icon(Icons.Default.Person, contentDescription = "Profile")
+                    }
+                    IconButton(onClick = { /* TODO: settings */ }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                }
+            )
+        },
         bottomBar = { RootBottomNavBar(navController) }
     ) { padding ->
         NavHost(navController = navController, startDestination = "market", modifier = Modifier.padding(padding)) {
