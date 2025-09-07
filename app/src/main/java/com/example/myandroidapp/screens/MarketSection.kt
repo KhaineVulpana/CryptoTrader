@@ -1,6 +1,8 @@
 package com.example.myandroidapp.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -8,20 +10,18 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.*
 
-import com.example.myandroidapp.components.PlaceholderChart
-import com.example.myandroidapp.components.PlaceholderTable
 import com.example.myandroidapp.components.ScrollAwareScaffold
+import com.example.myandroidapp.components.ChartTradeSplit
 import com.example.myandroidapp.shared.SharedAppViewModel
 
-private val marketTabs = listOf("Overview", "Index", "Charts", "Trends")
+private val marketTabs = listOf("Index", "Charts", "Trends")
 
 @Composable
 fun MarketSection(viewModel: SharedAppViewModel) {
     val nav = rememberNavController()
-    NavHost(navController = nav, startDestination = "Overview") {
-        composable("Overview") { OverviewTab(nav) }
-        composable("Index") { IndexTab(nav) }
-        composable("Charts") { ChartsTab(nav) }
+    NavHost(navController = nav, startDestination = "Index") {
+        composable("Index") { IndexTab(nav, viewModel) }
+        composable("Charts") { ChartsTab(nav, viewModel) }
         composable("Trends") { TrendsTab(nav) }
     }
 }
@@ -40,26 +40,7 @@ fun TopTabs(nav: NavController, current: String) {
 }
 
 @Composable
-fun OverviewTab(nav: NavController) {
-    ScrollAwareScaffold(
-        searchBarContent = {
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                label = { Text("Search Coins") },
-                modifier = Modifier.fillMaxWidth().padding(16.dp)
-            )
-        },
-        topTabsContent = { TopTabs(nav, "Overview") }
-    ) {
-        item { Text("Charts & Tables (Placeholder)", modifier = Modifier.padding(16.dp)) }
-        item { PlaceholderChart() }
-        item { PlaceholderTable() }
-    }
-}
-
-@Composable
-fun IndexTab(nav: NavController) {
+fun IndexTab(nav: NavController, viewModel: SharedAppViewModel) {
     ScrollAwareScaffold(
         searchBarContent = {
             OutlinedTextField(
@@ -82,12 +63,26 @@ fun IndexTab(nav: NavController) {
                 OutlinedButton(onClick = { /* TODO columns */ }) { Text("Columns") }
             }
         }
-        item { PlaceholderTable(columns = 6, rowHeight = 20.dp) }
+        items(listOf("BTC", "ETH", "BNB", "SOL")) { sym ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        viewModel.selectedTicker.value = sym
+                        nav.navigate("Charts")
+                    }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(sym)
+                Text("$0.00")
+            }
+        }
     }
 }
 
 @Composable
-fun ChartsTab(nav: NavController) {
+fun ChartsTab(nav: NavController, viewModel: SharedAppViewModel) {
     ScrollAwareScaffold(
         searchBarContent = {
             OutlinedTextField(
@@ -99,7 +94,7 @@ fun ChartsTab(nav: NavController) {
         },
         topTabsContent = { TopTabs(nav, "Charts") }
     ) {
-        item { PlaceholderChart() }
+        item { ChartTradeSplit(viewModel) }
     }
 }
 

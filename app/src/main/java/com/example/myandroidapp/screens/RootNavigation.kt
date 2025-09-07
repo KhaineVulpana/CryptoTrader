@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -38,17 +39,21 @@ fun RootNavigation() {
         },
         bottomBar = { RootBottomNavBar(navController) }
     ) { padding ->
-        NavHost(navController = navController, startDestination = "market", modifier = Modifier.padding(padding)) {
-            composable("market") { MarketSection(viewModel) }
+        NavHost(navController = navController, startDestination = "home", modifier = Modifier.padding(padding)) {
+            composable("home") { HomeSection(viewModel) }
+            composable("markets") { MarketSection(viewModel) }
             composable("tools") { ToolsSection(viewModel) }
-            composable("profile") { Text("Profile Screen Placeholder") }
         }
     }
 }
 
 @Composable
 fun RootBottomNavBar(navController: NavHostController) {
-    val items = listOf("market" to Icons.Default.BarChart, "tools" to Icons.Default.Build, "profile" to Icons.Default.Person)
+    val items = listOf(
+        "home" to Icons.Default.Home,
+        "markets" to Icons.Default.BarChart,
+        "tools" to Icons.Default.Build
+    )
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
