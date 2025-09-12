@@ -1,39 +1,54 @@
-# CryptoTrader Android Build Tasks
+# CryptoTrader 2.0 — Overarching TODO
 
-## Build Progress:
-- [x] Verify build environment and dependencies
-- [x] Set up Gradle wrapper (gradlew.bat, gradle-wrapper.jar, gradle-wrapper.properties)
-- [x] Create GitHub Actions workflow for automated building
-- [x] Set up Unix gradlew script for CI/CD
-- [x] Commit changes to local repository
-- [ ] Push to GitHub repository (BLOCKED - Permission issue)
-- [ ] Trigger automated build via GitHub Actions
-- [ ] Verify build success and download APK artifacts
+Global Definition of Done
+- [ ] Unit tests for pure logic ≥85% coverage; golden fixtures locked
+- [ ] All user actions emit typed Ledger events; errors mapped to sealed types
+- [ ] CI passes: `./gradlew ktlintCheck detekt test`
 
-## Status: Local setup complete, but push to GitHub failed due to permissions...
+PR Sequence
+- [x] PR #1 — Bootstrap (modules, contracts, CI/linters, README)
+- [x] PR #2 — Indicator & Window Engine (Track A)
+- [x] PR #3 — Statechart VM core (Track B)
+- [ ] PR #4 — Policy/Risk (Track C)
+- [ ] PR #5 — PaperBroker (Track D)
+- [ ] PR #6 — Backtester (Track E)
+- [ ] PR #7 — Visual Editor + Compiler JSON→bytecode (Track F)
+- [ ] PR #8 — Portfolio aggregator + Funding planner (Track G)
+- [ ] PR #9 — UI tabs (Compose) driven by ledger streams (Track H)
 
-## Issue: GitHub Push Permission Denied
-The push to GitHub failed with a 403 error. This indicates:
-- The current Git credentials don't have write access to the repository
-- You may need to authenticate with the correct GitHub account
-- Or use SSH keys instead of HTTPS
+Track A — Indicators (Core)
+- [x] O(1) windows: sums, sumSq, mono-queues
+- [x] EMA (SMA-seeded), RSI (Wilder), MACD, BB, Donchian, ATR (Wilder), Z-score
+- [x] Parity tests over `fixtures/ohlcv/*`
 
-## Resolution Steps:
-1. Verify you have write access to the KhaineVulpana/CryptoTrader repository
-2. If using HTTPS, ensure your GitHub credentials are correct
-3. Alternatively, set up SSH keys for GitHub authentication
-4. Or fork the repository to your own GitHub account and push there
+Track B — Statechart VM
+- [x] Bytecode schema (Block Schema v1 subset)
+- [x] Guards: oncePerBar, crosses, thresholds
+- [x] Actions: emit; Timers: delay; Quotas
+- [x] Deterministic replay tests
 
-## Files Ready for Push:
-- `.github/workflows/android-build.yml` - GitHub Actions workflow
-- `gradlew` - Unix Gradle wrapper script
-- `gradlew.bat` - Windows Gradle wrapper script
-- `gradle/wrapper/gradle-wrapper.jar` - Gradle wrapper JAR
-- `gradle/wrapper/gradle-wrapper.properties` - Gradle wrapper configuration
-- `TODO.md` - Updated task progress
+Track C — Policy/Risk
+- [ ] Netting engine: priorities, portfolio-target, vote + sizing
+- [ ] Risk sizer maps NetPlan → Orders
+- [ ] Error taxonomy (sealed types) and tests
 
-## Next Steps:
-1. Resolve GitHub authentication/permission issue
-2. Push committed changes to GitHub repository
-3. GitHub Actions will automatically trigger and build the project
-4. Download generated APK artifacts from the Actions tab
+Track D — PaperBroker
+- [ ] Deterministic fills with latency/slippage/fees/partials
+- [ ] Stream broker events; typed errors
+
+Track E — Backtester
+- [ ] Event-driven runner; metrics and reports
+
+Track F — Visual Editor
+- [ ] Blockly/WebView UI for Block Schema v1
+- [ ] Compiler JSON→bytecode with parity tests to runtime
+
+Track G — Portfolio
+- [ ] Aggregator + Funding planner (mock connectors)
+
+Track H — UI
+- [ ] Compose tabs driven by ledger streams; Hilt wiring
+
+Housekeeping
+- [ ] Detekt/Ktlint strict mode on all modules
+- [ ] Code coverage reporting in CI
