@@ -44,33 +44,38 @@ class RollingStatsWindow(private val period: Int) {
 /**
  * Monotonic queues to track rolling min and max in O(1) per update.
  */
-class RollingMinMaxWindow(private val period: Int) {
-  private data class Entry(val value: Double, val index: Int)
+private data class Entry(val value: Double, val index: Int)
 
-  private val minQ = ArrayDeque<Entry>()
-  private val maxQ = ArrayDeque<Entry>()
+class RollingMaxWindow(private val period: Int) {
+  private val q = ArrayDeque<Entry>()
   private var indexCounter = -1
 
   fun add(value: Double) {
     indexCounter += 1
     val expiry = indexCounter - period + 1
-
-    // Max queue (decreasing)
-    while (maxQ.isNotEmpty() && maxQ.last().value < value) maxQ.removeLast()
-    maxQ.addLast(Entry(value, indexCounter))
-    while (maxQ.isNotEmpty() && maxQ.first().index < expiry) maxQ.removeFirst()
-
-    // Min queue (increasing)
-    while (minQ.isNotEmpty() && minQ.last().value > value) minQ.removeLast()
-    minQ.addLast(Entry(value, indexCounter))
-    while (minQ.isNotEmpty() && minQ.first().index < expiry) minQ.removeFirst()
+    while (q.isNotEmpty() && q.last().value < value) q.removeLast()
+    q.addLast(Entry(value, indexCounter))
+    while (q.isNotEmpty() && q.first().index < expiry) q.removeFirst()
   }
 
   fun isFull(): Boolean = indexCounter + 1 >= period
+  fun currentMax(): Double? = if (isFull()) q.first().value else null
+}
 
-  fun currentMin(): Double? = if (isFull()) minQ.first().value else null
+class RollingMinWindow(private val period: Int) {
+  private val q = ArrayDeque<Entry>()
+  private var indexCounter = -1
 
-  fun currentMax(): Double? = if (isFull()) maxQ.first().value else null
+  fun add(value: Double) {
+    indexCounter += 1
+    val expiry = indexCounter - period + 1
+    while (q.isNotEmpty() && q.last().value > value) q.removeLast()
+    q.addLast(Entry(value, indexCounter))
+    while (q.isNotEmpty() && q.first().index < expiry) q.removeFirst()
+  }
+
+  fun isFull(): Boolean = indexCounter + 1 >= period
+  fun currentMin(): Double? = if (isFull()) q.first().value else null
 }
 
 /**
@@ -137,4 +142,3 @@ object TrueRange {
     }
   }
 }
-
