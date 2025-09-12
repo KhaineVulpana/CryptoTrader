@@ -13,7 +13,6 @@ import androidx.navigation.compose.*
 import com.example.myandroidapp.components.ScrollAwareScaffold
 import com.example.myandroidapp.components.ChartTradeSplit
 import com.example.myandroidapp.shared.SharedAppViewModel
-
 private val marketTabs = listOf("Index", "Charts", "Trends")
 
 @Composable
