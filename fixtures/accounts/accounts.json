@@ -1,0 +1,32 @@
+[
+  {
+    "id": "acc_binance",
+    "kind": "CEX",
+    "name": "Binance",
+    "venueId": "binance",
+    "networks": [
+      "ETH",
+      "BSC",
+      "TRX"
+    ]
+  },
+  {
+    "id": "acc_coinbase",
+    "kind": "CEX",
+    "name": "Coinbase",
+    "venueId": "coinbase",
+    "networks": [
+      "ETH"
+    ]
+  },
+  {
+    "id": "acc_wallet_evm",
+    "kind": "WALLET",
+    "name": "My EVM Wallet",
+    "venueId": "wallet:evm:0xABC",
+    "networks": [
+      "ETH",
+      "ARB"
+    ]
+  }
+]
