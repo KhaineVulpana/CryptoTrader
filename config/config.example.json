@@ -1,0 +1,13 @@
+{
+  "binance": {
+    "apiBase": "https://api.binance.com",
+    "wsBase": "wss://stream.binance.com:9443"
+  },
+  "coinbase": {
+    "apiBase": "https://api.coinbase.com",
+    "wsBase": "wss://advanced-trade-ws.coinbase.com"
+  },
+  "walletconnect": {
+    "projectId": "REPLACE_ME"
+  }
+}
