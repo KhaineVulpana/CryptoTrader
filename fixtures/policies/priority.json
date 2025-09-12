@@ -1,0 +1,7 @@
+{
+  "mode": "priority",
+  "priority": [
+    "strategy.momentum",
+    "automation.dca"
+  ]
+}
