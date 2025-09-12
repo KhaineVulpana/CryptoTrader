@@ -1,0 +1,88 @@
+{
+  "v": 1,
+  "id": "emaCross",
+  "graph": {
+    "nodes": [
+      {
+        "id": "e1",
+        "type": "onCandle",
+        "props": {
+          "tf": "H1"
+        }
+      },
+      {
+        "id": "i1",
+        "type": "indicator",
+        "props": {
+          "name": "ema",
+          "params": {
+            "len": 50
+          }
+        }
+      },
+      {
+        "id": "i2",
+        "type": "indicator",
+        "props": {
+          "name": "ema",
+          "params": {
+            "len": 200
+          }
+        }
+      },
+      {
+        "id": "g1",
+        "type": "oncePerBar"
+      },
+      {
+        "id": "c1",
+        "type": "crossesAbove"
+      },
+      {
+        "id": "r1",
+        "type": "riskSize",
+        "props": {
+          "riskPct": 1.0
+        }
+      },
+      {
+        "id": "a1",
+        "type": "emitOrder",
+        "props": {
+          "side": "BUY",
+          "type": "MARKET"
+        }
+      }
+    ],
+    "edges": [
+      [
+        "e1",
+        "i1"
+      ],
+      [
+        "e1",
+        "i2"
+      ],
+      [
+        "i1",
+        "g1"
+      ],
+      [
+        "i2",
+        "g1"
+      ],
+      [
+        "g1",
+        "c1"
+      ],
+      [
+        "c1",
+        "r1"
+      ],
+      [
+        "r1",
+        "a1"
+      ]
+    ]
+  }
+}
