@@ -9,3 +9,7 @@ config/config.json
 *.jks
 *.keystore
 .env
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md
