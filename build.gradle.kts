@@ -8,14 +8,13 @@ plugins {
   id("org.jlleitschuh.gradle.ktlint") version "12.1.1" apply false
 }
 
-allprojects {
-  repositories {
-    google()
-    mavenCentral()
-  }
-}
+// Repositories are managed in settings.gradle.kts (FAIL_ON_PROJECT_REPOS)
 
 subprojects {
+  // Ensure Java toolchain uses JDK 17 (with auto-provision via Foojay plugin)
+  plugins.withType<JavaPlugin> {
+    the<JavaPluginExtension>().toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+  }
   // Apply static analysis to library modules only (skip :app initially)
   if (name != "app") {
     apply(plugin = "io.gitlab.arturbosch.detekt")

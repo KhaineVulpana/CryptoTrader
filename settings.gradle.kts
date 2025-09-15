@@ -1,4 +1,3 @@
-
 pluginManagement {
   repositories {
     google()
@@ -10,9 +9,14 @@ pluginManagement {
     id("com.android.library") version "8.5.0"
     id("org.jetbrains.kotlin.android") version "1.9.24"
     id("org.jetbrains.kotlin.jvm") version "1.9.24"
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.24"
     id("io.gitlab.arturbosch.detekt") version "1.23.6"
     id("org.jlleitschuh.gradle.ktlint") version "12.1.1"
   }
+}
+
+plugins {
+  id("org.gradle.toolchains.foojay-resolver-convention") version "0.9.0"
 }
 
 dependencyResolutionManagement {
