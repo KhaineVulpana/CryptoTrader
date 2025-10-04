@@ -1,68 +1,290 @@
-name: Android CI/CD (manual)
+name: Android CI/CD
 
 on:
   workflow_dispatch:
+    inputs:
+      release_name:
+        description: 'Optional release name (used for tagging and Play Store release name)'
+        required: false
+        default: ''
+      push_branch:
+        description: 'Push the current branch after the build using the workflow token'
+        type: boolean
+        required: false
+        default: false
+      create_release_tag:
+        description: 'Create/force-update a git tag that matches release_name'
+        type: boolean
+        required: false
+        default: false
+      promote_to_internal:
+        description: 'Upload the signed bundle to the Google Play internal testing track'
+        type: boolean
+        required: false
+        default: false
+      enable_feature_flag:
+        description: 'Confirm that the release feature flag has been enabled'
+        type: boolean
+        required: false
+        default: false
+      feature_flag_name:
+        description: 'Feature flag gate that must be enabled before promotion'
+        required: false
+        default: 'trading-beta'
+      rollout_percentage:
+        description: 'User fraction (0-1] for staged rollout when uploading to Play Store'
+        required: false
+        default: '0.1'
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_USER_HOME: ${{ github.workspace }}/.gradle
 
 jobs:
-  build:
+  quality-checks:
+    name: Static analysis & unit tests
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
 
-    - name: Create local.properties
-      run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
 
-    - name: Cache Gradle packages
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-          
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-        
-    - name: Clean project
-      run: ./gradlew clean
-      
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug
-      
-    - name: Build Release APK
-      run: ./gradlew assembleRelease
-      
-    - name: Run tests
-      run: ./gradlew test
-      
-    - name: Upload Debug APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: debug-apk
-        path: app/build/outputs/apk/debug/*.apk
-        
-    - name: Upload Release APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-apk
-        path: app/build/outputs/apk/release/*.apk
-        
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-results
-        path: app/build/test-results/
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Lint & unit tests
+        run: ./gradlew ktlintCheck detekt testDebugUnitTest --stacktrace
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            **/build/test-results/**
+            **/build/reports/tests/**
+          if-no-files-found: warn
+
+  instrumentation-tests:
+    name: Instrumentation tests
+    needs: quality-checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: ./gradlew connectedDebugAndroidTest --stacktrace
+
+      - name: Upload instrumentation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumentation-reports
+          path: |
+            app/build/outputs/androidTest-results/**
+            app/build/reports/androidTests/**
+          if-no-files-found: warn
+
+  signed-build:
+    name: Signed build artifacts
+    needs:
+      - quality-checks
+      - instrumentation-tests
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_SIGNING_STORE_FILE: ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Decode signing key
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          if [[ -z "${KEYSTORE_B64}" || -z "${STORE_PASSWORD}" || -z "${KEY_ALIAS}" || -z "${KEY_PASSWORD}" ]]; then
+            echo "signing_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          SIGNING_KEY_PATH="${GITHUB_WORKSPACE}/signing-keystore.jks"
+          echo "${KEYSTORE_B64}" | base64 -d > "${SIGNING_KEY_PATH}"
+          {
+            echo "ANDROID_SIGNING_STORE_FILE=${SIGNING_KEY_PATH}"
+            echo "ANDROID_SIGNING_STORE_PASSWORD=${STORE_PASSWORD}"
+            echo "ANDROID_SIGNING_KEY_ALIAS=${KEY_ALIAS}"
+            echo "ANDROID_SIGNING_KEY_PASSWORD=${KEY_PASSWORD}"
+          } >> "$GITHUB_ENV"
+          echo "signing_ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Validate signing inputs
+        if: ${{ inputs.promote_to_internal == 'true' }}
+        run: |
+          if [[ "${{ steps.signing.outputs.signing_ready }}" != 'true' ]]; then
+            echo '::error::Play Store promotion requested but signing secrets are missing.'
+            exit 1
+          fi
+
+      - name: Assemble debug & release artifacts
+        run: ./gradlew assembleDebug assembleRelease bundleRelease --stacktrace
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/*.apk
+
+      - name: Upload Release Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: app/build/outputs/bundle/release/*.aab
+
+      - name: Upload mapping files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mapping-files
+          path: app/build/outputs/mapping/release/
+          if-no-files-found: warn
+
+      - name: Push current branch
+        if: ${{ inputs.push_branch == 'true' }}
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Create or update release tag
+        if: ${{ inputs.create_release_tag == 'true' && inputs.release_name != '' }}
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git tag -f "${{ inputs.release_name }}"
+          git push origin "refs/tags/${{ inputs.release_name }}"
+
+  promote-internal-track:
+    name: Promote to Play Store internal testing
+    needs: signed-build
+    if: ${{ inputs.promote_to_internal == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: release
+
+      - name: Gate release with feature flag and staged rollout
+        id: rollout
+        env:
+          FEATURE_FLAG_ENABLED: ${{ inputs.enable_feature_flag }}
+          FEATURE_FLAG_NAME: ${{ inputs.feature_flag_name }}
+          ROLLOUT_PERCENTAGE: ${{ inputs.rollout_percentage }}
+        run: |
+          python - <<'PY'
+import os
+import sys
+
+feature_flag_name = os.environ.get('FEATURE_FLAG_NAME', '').strip() or 'unnamed-flag'
+feature_flag_enabled = os.environ.get('FEATURE_FLAG_ENABLED', 'false').lower() == 'true'
+rollout_raw = os.environ.get('ROLLOUT_PERCENTAGE', '0').strip()
+
+try:
+    rollout_value = float(rollout_raw)
+except ValueError as exc:
+    sys.exit(f"Invalid rollout percentage '{rollout_raw}': {exc}")
+
+if not feature_flag_enabled:
+    sys.exit(f"Feature flag '{feature_flag_name}' must be enabled before Play Store promotion.")
+
+if rollout_value <= 0 or rollout_value > 1:
+    sys.exit(f"Rollout percentage must be within (0, 1]. Provided: {rollout_value}")
+
+with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+    fh.write(f"user_fraction={rollout_value}\n")
+PY
+
+      - name: Promote to Google Play internal track
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.example.myandroidapp
+          releaseFiles: release/*.aab
+          track: internal
+          status: inProgress
+          userFraction: ${{ steps.rollout.outputs.user_fraction }}
+          releaseName: ${{ inputs.release_name }}
+
