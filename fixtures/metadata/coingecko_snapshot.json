@@ -1,0 +1,22 @@
+{
+  "assets": [
+    {
+      "id": "bitcoin",
+      "symbol": "btc",
+      "name": "Bitcoin",
+      "tick_size": 0.01,
+      "lot_size": 0.0001,
+      "venues": ["Binance", "Coinbase"],
+      "timeframes": ["1h", "1d"]
+    },
+    {
+      "id": "ethereum",
+      "symbol": "eth",
+      "name": "Ethereum",
+      "tick_size": 0.01,
+      "lot_size": 0.001,
+      "venues": ["Binance"],
+      "timeframes": ["1h", "4h", "1d"]
+    }
+  ]
+}
