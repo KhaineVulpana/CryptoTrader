@@ -1,0 +1,6 @@
+{
+  "aggregators": [
+    {"id": "0x", "name": "0x API", "supportsLimitOrders": false},
+    {"id": "1inch", "name": "1inch", "supportsLimitOrders": true}
+  ]
+}
