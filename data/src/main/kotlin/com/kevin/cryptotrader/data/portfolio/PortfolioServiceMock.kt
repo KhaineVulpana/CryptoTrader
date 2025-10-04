@@ -17,7 +17,6 @@ class PortfolioServiceMock : PortfolioService {
   override fun positions(): Flow<List<Position>> = positionsFlow.asStateFlow()
 
   override suspend fun acquire(asset: String, amount: Double, target: AccountId?): TransferPlan {
-    val to = target ?: accountsFlow.value.firstOrNull()?.id ?: "acc_unknown"
     return TransferPlan(
       id = "tp-$asset-$amount",
       steps = listOf(
@@ -25,6 +24,20 @@ class PortfolioServiceMock : PortfolioService {
       ),
       totalCostUsd = amount * 1.0,
       etaSeconds = 60,
+      costBreakdown = CostBreakdown(
+        notionalUsd = amount * 1.0,
+        tradingFeesUsd = 0.0,
+        withdrawalFeesUsd = 0.0,
+        networkFeesUsd = 0.0,
+      ),
+      safetyChecks = listOf(
+        PlanSafetyCheck(
+          id = "mock_preview",
+          description = "Preview only",
+          status = SafetyStatus.WARNING,
+          blocking = false,
+        )
+      ),
     )
   }
 }
