@@ -127,6 +127,8 @@ data class TransferPlan(
   val steps: List<TransferStep>,
   val totalCostUsd: Double,
   val etaSeconds: Long,
+  val costBreakdown: CostBreakdown = CostBreakdown(),
+  val safetyChecks: List<PlanSafetyCheck> = emptyList(),
 )
 
 sealed class TransferStep {
@@ -155,6 +157,16 @@ sealed class TransferStep {
     val asset: String,
     val amount: Double,
   ) : TransferStep()
+
+  data class WalletTransfer(
+    val walletId: AccountId,
+    val toAddress: String,
+    val asset: String,
+    val network: String,
+    val amount: Double,
+    val connector: String,
+    val memo: String? = null,
+  ) : TransferStep()
 }
 
 data class PlanPrefs(
@@ -167,6 +179,28 @@ data class PlanStatus(
   val stepIndex: Int,
   val state: String,
   val error: String? = null,
+)
+
+data class CostBreakdown(
+  val notionalUsd: Double = 0.0,
+  val tradingFeesUsd: Double = 0.0,
+  val withdrawalFeesUsd: Double = 0.0,
+  val networkFeesUsd: Double = 0.0,
+) {
+  val totalFeesUsd: Double
+    get() = tradingFeesUsd + withdrawalFeesUsd + networkFeesUsd
+
+  val totalCostUsd: Double
+    get() = notionalUsd + totalFeesUsd
+}
+
+enum class SafetyStatus { PASSED, WARNING, PENDING }
+
+data class PlanSafetyCheck(
+  val id: String,
+  val description: String,
+  val status: SafetyStatus,
+  val blocking: Boolean = true,
 )
 
 data class AutomationDef(
