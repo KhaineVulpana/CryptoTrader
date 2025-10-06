@@ -16,7 +16,28 @@ class FundingServiceMock : FundingService {
     } else {
       steps += TransferStep.TransferInternal(accountFrom = from, accountTo = to, asset = asset, amount = amount)
     }
-    return TransferPlan(id = "plan-$asset-$amount", steps = steps, totalCostUsd = amount * 0.001, etaSeconds = 120)
+    val cost = CostBreakdown(
+      notionalUsd = 0.0,
+      tradingFeesUsd = 0.0,
+      withdrawalFeesUsd = amount * 0.001,
+      networkFeesUsd = 0.0,
+    )
+    val safety = listOf(
+      PlanSafetyCheck(
+        id = "mock_two_tap",
+        description = "Confirm mock transfer",
+        status = SafetyStatus.PENDING,
+        blocking = false,
+      )
+    )
+    return TransferPlan(
+      id = "plan-$asset-$amount",
+      steps = steps,
+      totalCostUsd = cost.totalCostUsd,
+      etaSeconds = 120,
+      costBreakdown = cost,
+      safetyChecks = safety,
+    )
   }
 
   override suspend fun execute(plan: TransferPlan): String {
