@@ -3,5 +3,42 @@
   "priority": [
     "strategy.momentum",
     "automation.dca"
+  ],
+  "intents": [
+    {
+      "id": "i1",
+      "sourceId": "automation.dca#1",
+      "kind": "sig",
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "qty": 0.1,
+      "priceHint": 20000.0
+    },
+    {
+      "id": "i2",
+      "sourceId": "strategy.momentum#main",
+      "kind": "sig",
+      "symbol": "BTCUSDT",
+      "side": "SELL",
+      "qty": 0.05,
+      "priceHint": 20000.0
+    },
+    {
+      "id": "i3",
+      "sourceId": "strategy.momentum#main",
+      "kind": "sig",
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "qty": 0.12,
+      "priceHint": 20000.0
+    }
+  ],
+  "expected": [
+    {
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "qty": 0.07,
+      "priceHint": 20000.0
+    }
   ]
 }

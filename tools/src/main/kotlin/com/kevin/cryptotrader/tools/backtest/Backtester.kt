@@ -2,6 +2,8 @@ package com.kevin.cryptotrader.tools.backtest
 
 import com.kevin.cryptotrader.contracts.AutomationDef
 import com.kevin.cryptotrader.contracts.Intent
+import com.kevin.cryptotrader.contracts.PolicyConfig
+import com.kevin.cryptotrader.contracts.PolicyMode
 import com.kevin.cryptotrader.contracts.RuntimeEnv
 import com.kevin.cryptotrader.core.policy.PolicyEngineImpl
 import com.kevin.cryptotrader.core.policy.RiskSizerImpl
@@ -20,6 +22,7 @@ data class BacktestConfig(
   val priceCsvPath: String,
   val programJson: String,
   val priority: List<String> = emptyList(),
+  val policyConfig: PolicyConfig? = null,
 )
 
 data class BacktestMetrics(
@@ -50,7 +53,13 @@ class Backtester(private val cfg: BacktestConfig) {
       intentsFlow.collect { i -> pendingIntents.add(i) }
     }
 
-    val policy = PolicyEngineImpl(priority = cfg.priority)
+    val policy = PolicyEngineImpl(
+      cfg.policyConfig ?: if (cfg.priority.isNotEmpty()) {
+        PolicyConfig(mode = PolicyMode.PRIORITY, priority = cfg.priority)
+      } else {
+        PolicyConfig()
+      },
+    )
     val sizer = RiskSizerImpl()
 
     bars.forEach { bar ->
@@ -60,11 +69,12 @@ class Backtester(private val cfg: BacktestConfig) {
       if (pendingIntents.isNotEmpty()) {
         metrics.intents += pendingIntents.size
         val plan = policy.net(pendingIntents.toList(), positions = emptyList())
-        val orders = sizer.size(plan, account = com.kevin.cryptotrader.contracts.AccountSnapshot(0.0, emptyMap()))
-        metrics.orders += orders.size
-        for (o in orders) {
+        val riskResult = sizer.size(plan, account = com.kevin.cryptotrader.contracts.AccountSnapshot(0.0, emptyMap()))
+        metrics.orders += riskResult.orders.size
+        for (o in riskResult.orders) {
           scope.launch { broker.place(o) }
         }
+        // Stop orders are emitted for analytics but not placed in the paper broker during backtests.
         pendingIntents.clear()
       }
     }

@@ -1,0 +1,53 @@
+{
+  "mode": "portfolio_target",
+  "strategyWeights": {
+    "strategy.momentum": 0.6,
+    "strategy.value": 0.4
+  },
+  "positions": [
+    { "accountId": "acc", "symbol": "BTCUSDT", "qty": 0.2, "avgPrice": 20000.0 },
+    { "accountId": "acc", "symbol": "ETHUSDT", "qty": 5.0, "avgPrice": 1500.0 }
+  ],
+  "intents": [
+    {
+      "id": "m1",
+      "sourceId": "strategy.momentum#main",
+      "kind": "sig",
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "priceHint": 21000.0,
+      "meta": { "target_qty": "0.8" }
+    },
+    {
+      "id": "v1",
+      "sourceId": "strategy.value#rot",
+      "kind": "sig",
+      "symbol": "BTCUSDT",
+      "side": "SELL",
+      "priceHint": 21000.0,
+      "meta": { "target_qty": "0.4" }
+    },
+    {
+      "id": "m2",
+      "sourceId": "strategy.momentum#main",
+      "kind": "sig",
+      "symbol": "ETHUSDT",
+      "side": "BUY",
+      "priceHint": 1600.0,
+      "meta": { "target_qty": "4.0" }
+    },
+    {
+      "id": "v2",
+      "sourceId": "strategy.value#rot",
+      "kind": "sig",
+      "symbol": "ETHUSDT",
+      "side": "SELL",
+      "priceHint": 1600.0,
+      "meta": { "target_qty": "1.0" }
+    }
+  ],
+  "expected": [
+    { "symbol": "BTCUSDT", "side": "BUY", "qty": 0.44, "priceHint": 21000.0 },
+    { "symbol": "ETHUSDT", "side": "SELL", "qty": 2.2, "priceHint": 1600.0 }
+  ]
+}
