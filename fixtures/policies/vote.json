@@ -1,0 +1,47 @@
+{
+  "mode": "vote",
+  "voteThreshold": 0.6,
+  "strategyWeights": {
+    "strategy.momentum": 0.5,
+    "strategy.meanrev": 0.3,
+    "automation.rebalance": 0.2
+  },
+  "positions": [
+    { "accountId": "acc", "symbol": "BTCUSDT", "qty": 0.3, "avgPrice": 20000.0 }
+  ],
+  "intents": [
+    {
+      "id": "m",
+      "sourceId": "strategy.momentum#main",
+      "kind": "sig",
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "qty": 0.4,
+      "priceHint": 20000.0,
+      "meta": { "target_qty": "0.7" }
+    },
+    {
+      "id": "r",
+      "sourceId": "automation.rebalance#1",
+      "kind": "sig",
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "qty": 0.3,
+      "priceHint": 20000.0,
+      "meta": { "target_qty": "0.5" }
+    },
+    {
+      "id": "mean",
+      "sourceId": "strategy.meanrev#alt",
+      "kind": "sig",
+      "symbol": "BTCUSDT",
+      "side": "SELL",
+      "qty": 0.2,
+      "priceHint": 20000.0,
+      "meta": { "target_qty": "0.0" }
+    }
+  ],
+  "expected": [
+    { "symbol": "BTCUSDT", "side": "BUY", "qty": 0.15, "priceHint": 20000.0 }
+  ]
+}
