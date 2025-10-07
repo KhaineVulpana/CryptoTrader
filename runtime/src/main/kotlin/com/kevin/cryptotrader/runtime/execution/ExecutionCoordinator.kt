@@ -34,11 +34,11 @@ class ExecutionCoordinator(
         ledger.append(LedgerEvent.NetPlanReady(now, netPlan))
 
         val account = broker.account()
-        val orders = riskSizer.size(netPlan, account)
-        if (orders.isEmpty()) return
-        ledger.append(LedgerEvent.OrdersSized(now, orders))
+        val riskResult = riskSizer.size(netPlan, account)
+        if (riskResult.orders.isEmpty()) return
+        ledger.append(LedgerEvent.OrdersSized(now, riskResult.orders))
 
-        for (order in orders) {
+        for (order in riskResult.orders) {
             val brokerId = broker.place(order)
             ledger.append(LedgerEvent.OrderRouted(clock.millis(), order, brokerId))
         }

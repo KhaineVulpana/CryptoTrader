@@ -1,0 +1,76 @@
+{
+  "id": "strategy_ema_cross",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"}
+  ],
+  "series": [
+    {"name": "ema_fast", "type": "EMA", "period": 12, "source": "CLOSE", "symbol": "BTCUSDT"},
+    {"name": "ema_slow", "type": "EMA", "period": 26, "source": "CLOSE", "symbol": "BTCUSDT"},
+    {"name": "atr14", "type": "ATR", "period": 14, "symbol": "BTCUSDT"}
+  ],
+  "rules": [
+    {
+      "id": "ema_long",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "oncePerBar": true,
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "ema_fast"},
+        "dir": "ABOVE",
+        "right": {"type": "series", "name": "ema_slow"}
+      },
+      "actions": [
+        {
+          "type": "emitOrder",
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "kind": "entry",
+          "price": {"type": "series", "name": "close"},
+          "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.01"}
+        },
+        {
+          "type": "setStopAtr",
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "atrSeries": "atr14",
+          "multiplier": 2.0,
+          "kind": "stop"
+        }
+      ],
+      "quota": {"max": 100, "windowMs": 86400000}
+    },
+    {
+      "id": "ema_short",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "oncePerBar": true,
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "ema_fast"},
+        "dir": "BELOW",
+        "right": {"type": "series", "name": "ema_slow"}
+      },
+      "actions": [
+        {
+          "type": "emitOrder",
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "kind": "entry",
+          "price": {"type": "series", "name": "close"},
+          "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.01"}
+        },
+        {
+          "type": "setStopAtr",
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "atrSeries": "atr14",
+          "multiplier": 2.0,
+          "kind": "stop"
+        }
+      ],
+      "quota": {"max": 100, "windowMs": 86400000}
+    }
+  ]
+}

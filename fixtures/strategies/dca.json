@@ -1,0 +1,21 @@
+{
+  "id": "strategy_dca",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"}
+  ],
+  "series": [],
+  "rules": [
+    {
+      "id": "dca_weekly",
+      "event": {"type": "schedule", "everyMs": 604800000},
+      "guard": {"type": "always"},
+      "actions": [
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "BUY", "kind": "dca", "price": {"type": "series", "name": "close"}, "notionalUsd": {"type": "const", "value": 250.0}, "metaStrings": {"risk.mode": "fixed_notional"}},
+        {"type": "notify", "channel": "dca", "message": "Weekly DCA executed", "severity": "info", "fields": {"price": {"type": "series", "name": "close"}}}
+      ]
+    }
+  ]
+}
