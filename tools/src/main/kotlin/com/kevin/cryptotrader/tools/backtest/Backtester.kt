@@ -1,11 +1,20 @@
 package com.kevin.cryptotrader.tools.backtest
 
 import com.kevin.cryptotrader.contracts.AutomationDef
+import com.kevin.cryptotrader.contracts.Candle
+import com.kevin.cryptotrader.contracts.Interval
+import com.kevin.cryptotrader.contracts.PolicyConfig
+import com.kevin.cryptotrader.contracts.SimulationConfig
+import com.kevin.cryptotrader.contracts.SimulationCosts
+import com.kevin.cryptotrader.contracts.SimulationLatencyConfig
+import com.kevin.cryptotrader.contracts.SimulationResult
+import com.kevin.cryptotrader.contracts.WalkForwardSplit
+import com.kevin.cryptotrader.persistence.backtest.BacktestResultService
+import com.kevin.cryptotrader.runtime.vm.InputLoader
 import com.kevin.cryptotrader.contracts.BacktestSample
 import com.kevin.cryptotrader.contracts.Intent
 import com.kevin.cryptotrader.contracts.LivePipelineSample
 import com.kevin.cryptotrader.contracts.PipelineObserver
-import com.kevin.cryptotrader.contracts.PolicyConfig
 import com.kevin.cryptotrader.contracts.PolicyMode
 import com.kevin.cryptotrader.contracts.ResourceUsageSample
 import com.kevin.cryptotrader.contracts.RuntimeEnv
@@ -15,7 +24,6 @@ import com.kevin.cryptotrader.paperbroker.PaperBroker
 import com.kevin.cryptotrader.paperbroker.PaperBrokerConfig
 import com.kevin.cryptotrader.paperbroker.PriceSource
 import com.kevin.cryptotrader.runtime.AutomationRuntimeImpl
-import com.kevin.cryptotrader.runtime.vm.InputLoader
 import kotlin.math.max
 import kotlin.system.measureNanoTime
 import com.kevin.cryptotrader.runtime.vm.ProgramJson
@@ -26,6 +34,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 
+/**
+ * High-level facade wiring CSV market data, automation JSON, and simulator configuration.
+ */
 data class BacktestConfig(
   val priceCsvPath: String? = null,
   val priceCsvBySymbol: Map<String, String> = emptyMap(),
@@ -107,13 +118,17 @@ class Backtester(private val cfg: BacktestConfig) {
     val job = scope.launch {
       intentsFlow.collect { i -> pendingIntents.add(i) }
     }
-
-    val policy = PolicyEngineImpl(
-      cfg.policyConfig ?: if (cfg.priority.isNotEmpty()) {
-        PolicyConfig(mode = PolicyMode.PRIORITY, priority = cfg.priority)
-      } else {
-        PolicyConfig()
-      },
+    val simConfig = SimulationConfig(
+      runId = cfg.runId,
+      automation = automation,
+      symbol = cfg.symbol,
+      candles = candles,
+      splits = cfg.splits,
+      initialEquityUsd = cfg.initialEquityUsd,
+      latency = cfg.latency,
+      costs = cfg.costs,
+      policyConfig = cfg.policyConfig,
+      defaultIntentMeta = cfg.defaultIntentMeta,
     )
     val sizer = RiskSizerImpl()
 
@@ -168,4 +183,3 @@ class Backtester(private val cfg: BacktestConfig) {
     return metrics
   }
 }
-

@@ -10,6 +10,7 @@ dependencies {
   implementation(project(":core"))
   implementation(project(":runtime"))
   implementation(project(":paperbroker"))
+  implementation(project(":persistence"))
   implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")

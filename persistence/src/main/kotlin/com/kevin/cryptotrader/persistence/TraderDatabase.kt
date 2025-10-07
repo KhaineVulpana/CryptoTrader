@@ -6,6 +6,7 @@ import com.kevin.cryptotrader.contracts.LogLevel
 import com.kevin.cryptotrader.contracts.TelemetryModule
 import com.kevin.cryptotrader.core.telemetry.TelemetryCenter
 import com.kevin.cryptotrader.persistence.dao.AutomationStateDao
+import com.kevin.cryptotrader.persistence.dao.BacktestRunDao
 import com.kevin.cryptotrader.persistence.dao.CandleDao
 import com.kevin.cryptotrader.persistence.dao.FillDao
 import com.kevin.cryptotrader.persistence.dao.IntentDao
@@ -14,6 +15,7 @@ import com.kevin.cryptotrader.persistence.dao.OrderDao
 import com.kevin.cryptotrader.persistence.dao.PolicyDao
 import com.kevin.cryptotrader.persistence.dao.PositionDao
 import com.kevin.cryptotrader.persistence.entity.AutomationStateEntity
+import com.kevin.cryptotrader.persistence.entity.BacktestRunEntity
 import com.kevin.cryptotrader.persistence.entity.CandleEntity
 import com.kevin.cryptotrader.persistence.entity.FillEntity
 import com.kevin.cryptotrader.persistence.entity.IntentEntity
@@ -32,6 +34,7 @@ import com.kevin.cryptotrader.persistence.entity.PositionEntity
     PolicyEntity::class,
     AutomationStateEntity::class,
     LedgerEventEntity::class,
+    BacktestRunEntity::class,
   ],
   version = 3,
   exportSchema = false,
@@ -70,4 +73,6 @@ abstract class TraderDatabase : RoomDatabase() {
   abstract fun automationStateDao(): AutomationStateDao
 
   abstract fun ledgerEventDao(): LedgerEventDao
+
+  abstract fun backtestRunDao(): BacktestRunDao
 }

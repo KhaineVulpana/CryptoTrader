@@ -101,6 +101,7 @@ class PolicyEngineImpl(
           notionalUsd = priceHint?.let { it * qty },
           priceHint = priceHint,
           meta = mergeMeta(contributions.map { it.intent }),
+          ts = contributions.mapNotNull { it.intent.ts }.maxOrNull(),
         ),
       )
     }
@@ -152,6 +153,7 @@ class PolicyEngineImpl(
           notionalUsd = priceHint?.let { it * qty },
           priceHint = priceHint,
           meta = mergeMeta(contributions.map { it.intent }),
+          ts = contributions.mapNotNull { it.intent.ts }.maxOrNull(),
         ),
       )
     }
@@ -197,6 +199,7 @@ class PolicyEngineImpl(
       notionalUsd = totalNotional,
       priceHint = priceHint,
       meta = template.meta,
+      ts = template.ts,
     )
   }
 
