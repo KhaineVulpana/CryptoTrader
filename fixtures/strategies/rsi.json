@@ -1,0 +1,71 @@
+{
+  "id": "strategy_rsi",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"}
+  ],
+  "series": [
+    {"name": "rsi14", "type": "RSI", "period": 14, "source": "CLOSE", "symbol": "BTCUSDT"}
+  ],
+  "rules": [
+    {
+      "id": "rsi_long",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "oncePerBar": true,
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "rsi14"},
+        "dir": "ABOVE",
+        "right": {"type": "const", "value": 30.0}
+      },
+      "actions": [
+        {
+          "type": "emitOrder",
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "kind": "entry",
+          "price": {"type": "series", "name": "close"},
+          "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.015"}
+        },
+        {
+          "type": "log",
+          "message": "RSI long triggered",
+          "level": "INFO",
+          "fields": {"rsi": {"type": "series", "name": "rsi14"}}
+        }
+      ],
+      "quota": {"max": 50, "windowMs": 86400000}
+    },
+    {
+      "id": "rsi_short",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "oncePerBar": true,
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "rsi14"},
+        "dir": "BELOW",
+        "right": {"type": "const", "value": 70.0}
+      },
+      "actions": [
+        {
+          "type": "emitOrder",
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "kind": "entry",
+          "price": {"type": "series", "name": "close"},
+          "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.015"}
+        },
+        {
+          "type": "notify",
+          "channel": "alerts",
+          "message": "RSI short signal",
+          "severity": "warn",
+          "fields": {"rsi": {"type": "series", "name": "rsi14"}}
+        }
+      ],
+      "quota": {"max": 50, "windowMs": 86400000}
+    }
+  ]
+}

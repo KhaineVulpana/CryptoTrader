@@ -2,8 +2,6 @@ package com.kevin.cryptotrader.core.indicators
 
 import java.util.ArrayDeque
 import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.pow
 import kotlin.math.sqrt
 
 /**
@@ -39,6 +37,83 @@ class RollingStatsWindow(private val period: Int) {
   } else null
 
   fun stddev(): Double? = variance()?.let { v -> if (v <= 0.0) 0.0 else sqrt(v) }
+}
+
+/** Generic fixed-size double window retaining insertion order. */
+class RollingWindow(private val period: Int) {
+  private val buffer = ArrayDeque<Double>(period)
+
+  val size: Int get() = buffer.size
+
+  fun add(value: Double): Double? {
+    buffer.addLast(value)
+    return if (buffer.size > period) buffer.removeFirst() else null
+  }
+
+  fun isFull(): Boolean = buffer.size == period
+
+  fun values(): List<Double> = buffer.toList()
+
+  fun peekOldest(): Double? = buffer.firstOrNull()
+
+  fun peekNewest(): Double? = buffer.lastOrNull()
+}
+
+/** Rolling sum window with O(1) updates. */
+class RollingSumWindow(private val period: Int) {
+  private val buffer = ArrayDeque<Double>(period)
+  private var sum = 0.0
+
+  val size: Int get() = buffer.size
+
+  fun add(value: Double): Double? {
+    buffer.addLast(value)
+    sum += value
+    return if (buffer.size > period) {
+      val removed = buffer.removeFirst()
+      sum -= removed
+      removed
+    } else {
+      null
+    }
+  }
+
+  fun isFull(): Boolean = buffer.size == period
+
+  fun currentSum(): Double? = if (isFull()) sum else null
+
+  fun peekOldest(): Double? = buffer.firstOrNull()
+}
+
+/**
+ * Linear weighted moving average where newest sample has weight [period].
+ * Maintains sum and weighted sum for O(1) updates.
+ */
+class RollingLinearWeightedWindow(private val period: Int) {
+  private val buffer = ArrayDeque<Double>(period)
+  private var sum = 0.0
+  private var weightedSum = 0.0
+  private val divisor = period * (period + 1) / 2.0
+
+  val size: Int get() = buffer.size
+
+  fun add(value: Double) {
+    val previousSum = sum
+    val previousWeighted = weightedSum
+    buffer.addLast(value)
+    sum += value
+    if (buffer.size <= period) {
+      weightedSum = previousWeighted + value * buffer.size
+      return
+    }
+    val removed = buffer.removeFirst()
+    sum -= removed
+    weightedSum = previousWeighted - previousSum + value * period
+  }
+
+  fun isFull(): Boolean = buffer.size == period
+
+  fun current(): Double? = if (isFull()) weightedSum / divisor else null
 }
 
 /**
@@ -100,28 +175,41 @@ class WilderSMA(private val period: Int) {
   fun current(): Double? = value
 }
 
+class EwmAverage(private val alpha: Double, private val warmup: Int) {
+  private var count = 0
+  private var value: Double? = null
+
+  fun update(next: Double): Double? {
+    val prev = value
+    value = if (prev == null) {
+      next
+    } else {
+      (next - prev) * alpha + prev
+    }
+    count += 1
+    return if (count >= warmup) value else null
+  }
+
+  fun current(): Double? = value
+}
+
 /**
  * Standard EMA with initialization from SMA(period) once enough samples seen.
  */
 class Ema(private val period: Int) {
   private val alpha = 2.0 / (period + 1.0)
   private var count = 0
-  private var seedSum = 0.0
   private var ema: Double? = null
 
   fun update(price: Double): Double? {
-    if (count < period) {
-      seedSum += price
-      count += 1
-      if (count == period) {
-        ema = seedSum / period
-      }
-      return ema
+    val prev = ema
+    ema = if (prev == null) {
+      price
+    } else {
+      (price - prev) * alpha + prev
     }
-    val prev = ema ?: return null
-    val next = (price - prev) * alpha + prev
-    ema = next
-    return next
+    count += 1
+    return if (count >= period) ema else null
   }
 
   fun current(): Double? = ema
