@@ -1,0 +1,53 @@
+{
+  "id": "strategy_grid",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"}
+  ],
+  "series": [],
+  "rules": [
+    {
+      "id": "grid_seed",
+      "event": {"type": "schedule", "everyMs": 43200000},
+      "guard": {"type": "always"},
+      "actions": [
+        {"type": "setState", "key": "grid.step", "value": {"type": "const", "value": 150.0}},
+        {"type": "setState", "key": "grid.center", "value": {"type": "series", "name": "close"}},
+        {"type": "setState", "key": "grid.lower", "value": {"type": "math", "op": "SUB", "left": {"type": "state", "key": "grid.center"}, "right": {"type": "state", "key": "grid.step"}}},
+        {"type": "setState", "key": "grid.upper", "value": {"type": "math", "op": "ADD", "left": {"type": "state", "key": "grid.center"}, "right": {"type": "state", "key": "grid.step"}}}
+      ]
+    },
+    {
+      "id": "grid_buy",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "guard": {
+        "type": "threshold",
+        "left": {"type": "series", "name": "close"},
+        "op": "LTE",
+        "right": {"type": "state", "key": "grid.lower", "default": 0.0}
+      },
+      "actions": [
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "BUY", "kind": "grid", "price": {"type": "series", "name": "close"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.005"}},
+        {"type": "incState", "key": "grid.lower", "delta": {"type": "state", "key": "grid.step", "default": 0.0}},
+        {"type": "incState", "key": "grid.upper", "delta": {"type": "state", "key": "grid.step", "default": 0.0}}
+      ]
+    },
+    {
+      "id": "grid_sell",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "guard": {
+        "type": "threshold",
+        "left": {"type": "series", "name": "close"},
+        "op": "GTE",
+        "right": {"type": "state", "key": "grid.upper", "default": 0.0}
+      },
+      "actions": [
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "SELL", "kind": "grid", "price": {"type": "series", "name": "close"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.005"}},
+        {"type": "incState", "key": "grid.upper", "delta": {"type": "math", "op": "SUB", "left": {"type": "const", "value": 0.0}, "right": {"type": "state", "key": "grid.step", "default": 0.0}}},
+        {"type": "incState", "key": "grid.lower", "delta": {"type": "math", "op": "SUB", "left": {"type": "const", "value": 0.0}, "right": {"type": "state", "key": "grid.step", "default": 0.0}}}
+      ]
+    }
+  ]
+}

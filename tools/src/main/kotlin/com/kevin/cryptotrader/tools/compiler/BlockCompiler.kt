@@ -23,7 +23,7 @@ data class Node(
 )
 
 object BlockCompiler {
-  private val json = Json { ignoreUnknownKeys = true }
+  private val json = Json { ignoreUnknownKeys = true; classDiscriminator = "type" }
 
   fun compile(jsonStr: String): String {
     val doc = json.decodeFromString(BlockDoc.serializer(), jsonStr)
@@ -46,7 +46,15 @@ object BlockCompiler {
           lenEl?.toString()?.trim('"')?.toInt()
         } ?: 14
         val seriesName = "ema_${len}_${idx}"
-        series.add(SeriesDefJson(name = seriesName, type = SeriesType.EMA, period = len, source = SourceKey.CLOSE))
+        series.add(
+          SeriesDefJson(
+            name = seriesName,
+            type = SeriesType.EMA,
+            period = len,
+            source = SourceKey.CLOSE,
+            symbol = "BTCUSDT",
+          ),
+        )
         idToSeriesName[n.id] = seriesName
       }
     }
@@ -67,8 +75,19 @@ object BlockCompiler {
         val right = Operand.Series(seriesNames[1])
         val dir = if (node.type.equals("crossesAbove", true)) CrossDir.ABOVE else CrossDir.BELOW
         val guard = GuardJson.Crosses(left = left, dir = dir, right = right)
-        val action = ActionJson(type = ActionType.EMIT, symbol = "BTCUSDT", side = if (dir == CrossDir.ABOVE) Side.BUY else Side.SELL)
-        val rule = RuleJson(id = "rule_$idx", oncePerBar = true, guard = guard, action = action, quota = QuotaJson(100, 86_400_000))
+        val action = ActionJson.EmitOrder(
+          symbol = "BTCUSDT",
+          side = if (dir == CrossDir.ABOVE) Side.BUY else Side.SELL,
+          kind = "signal",
+        )
+        val rule = RuleJson(
+          id = "rule_$idx",
+          event = EventJson.Candle(symbol = "BTCUSDT"),
+          oncePerBar = true,
+          guard = guard,
+          actions = listOf(action),
+          quota = QuotaJson(100, 86_400_000),
+        )
         rules.add(rule)
       }
     }
@@ -77,7 +96,8 @@ object BlockCompiler {
       id = doc.id,
       version = 1,
       interval = interval,
-      inputsCsvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv",
+      defaultSymbol = "BTCUSDT",
+      inputs = listOf(InputSourceJson(symbol = "BTCUSDT", csvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv")),
       series = series,
       rules = rules,
     )

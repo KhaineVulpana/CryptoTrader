@@ -1,0 +1,40 @@
+{
+  "id": "strategy_zscore",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"}
+  ],
+  "series": [
+    {"name": "zscore_20", "type": "ZSCORE", "period": 20, "symbol": "BTCUSDT"}
+  ],
+  "rules": [
+    {
+      "id": "zscore_long",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "zscore_20"},
+        "dir": "BELOW",
+        "right": {"type": "const", "value": -2.0}
+      },
+      "actions": [
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "BUY", "kind": "mean_revert", "price": {"type": "series", "name": "close"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.012"}}
+      ]
+    },
+    {
+      "id": "zscore_short",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "zscore_20"},
+        "dir": "ABOVE",
+        "right": {"type": "const", "value": 2.0}
+      },
+      "actions": [
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "SELL", "kind": "mean_revert", "price": {"type": "series", "name": "close"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.012"}}
+      ]
+    }
+  ]
+}

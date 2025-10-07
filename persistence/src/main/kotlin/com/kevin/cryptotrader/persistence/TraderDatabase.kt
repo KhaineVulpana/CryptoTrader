@@ -33,7 +33,7 @@ import com.kevin.cryptotrader.persistence.entity.PositionEntity
     AutomationStateEntity::class,
     LedgerEventEntity::class,
   ],
-  version = 2,
+  version = 3,
   exportSchema = false,
 )
 abstract class TraderDatabase : RoomDatabase() {

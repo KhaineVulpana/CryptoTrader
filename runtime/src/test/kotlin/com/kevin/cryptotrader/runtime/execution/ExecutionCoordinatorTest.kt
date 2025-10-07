@@ -180,9 +180,9 @@ class ExecutionCoordinatorTest {
 
     private class PassthroughRiskSizer : RiskSizer {
         var lastNetPlan: NetPlan? = null
-        override fun size(netPlan: NetPlan, account: AccountSnapshot): List<Order> {
+        override fun size(netPlan: NetPlan, account: AccountSnapshot): com.kevin.cryptotrader.contracts.RiskResult {
             lastNetPlan = netPlan
-            return netPlan.intents.mapIndexed { index, intent ->
+            val orders = netPlan.intents.mapIndexed { index, intent ->
                 Order(
                     clientOrderId = "sized-$index",
                     symbol = intent.symbol,
@@ -195,6 +195,7 @@ class ExecutionCoordinatorTest {
                     ts = 0L
                 )
             }
+            return com.kevin.cryptotrader.contracts.RiskResult(orders)
         }
     }
 }
