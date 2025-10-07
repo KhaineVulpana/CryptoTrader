@@ -34,7 +34,8 @@ class ExecutionCoordinator(
         ledger.append(LedgerEvent.NetPlanReady(now, netPlan))
 
         val account = broker.account()
-        val orders = riskSizer.size(netPlan, account)
+        val riskResult = riskSizer.size(netPlan, account)
+        val orders = riskResult.orders
         if (orders.isEmpty()) return
         ledger.append(LedgerEvent.OrdersSized(now, orders))
 

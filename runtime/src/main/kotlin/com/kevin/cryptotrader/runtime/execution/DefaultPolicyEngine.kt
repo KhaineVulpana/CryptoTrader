@@ -45,6 +45,7 @@ class DefaultPolicyEngine(
                 null
             } else {
                 val priceHints = bucket.mapNotNull { it.priceHint }
+                val ts = bucket.mapNotNull { it.ts }.maxOrNull()
                 Intent(
                     id = "net-${UUID.randomUUID()}",
                     sourceId = bucket.first().sourceId,
@@ -54,7 +55,8 @@ class DefaultPolicyEngine(
                     notionalUsd = notional.takeIf { it > 0.0 },
                     qty = qty.takeIf { it > 0.0 },
                     priceHint = priceHints.takeIf { it.isNotEmpty() }?.average(),
-                    meta = mapOf("netted_from" to bucket.joinToString(",") { it.id })
+                    meta = mapOf("netted_from" to bucket.joinToString(",") { it.id }),
+                    ts = ts,
                 )
             }
         }
@@ -76,6 +78,7 @@ class DefaultPolicyEngine(
             val delta = targetQty - current - plannedDelta
             if (delta.absoluteValue <= EPS) continue
             val side = if (delta > 0) Side.BUY else Side.SELL
+            val ts = bySymbol[symbol]?.mapNotNull { it.ts }?.maxOrNull()
             adjustments += Intent(
                 id = "target-${UUID.randomUUID()}",
                 sourceId = "portfolio.target",
@@ -85,7 +88,8 @@ class DefaultPolicyEngine(
                 notionalUsd = null,
                 qty = delta.absoluteValue,
                 priceHint = null,
-                meta = mapOf("target" to targetQty.toString())
+                meta = mapOf("target" to targetQty.toString()),
+                ts = ts,
             )
         }
         return retained + adjustments

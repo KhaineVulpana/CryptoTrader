@@ -30,7 +30,7 @@ class Interpreter(private val program: ProgramJson) {
         val ready = ctx.updateTimerAndCheck(rule.id, bar.ts, rule.delayMs, guardPass)
         val allowed = ready && ctx.quotaPrecheck(rule.id, bar.ts, rule.quota)
         if (allowed) {
-          val out = toIntent(rule.action, rule.id)
+          val out = toIntent(rule.action, rule.id, bar.ts)
           emit(out)
           ctx.recordEmit(rule.id, bar.ts, rule.quota)
         }
@@ -38,7 +38,7 @@ class Interpreter(private val program: ProgramJson) {
     }
   }
 
-  private fun toIntent(action: ActionJson, sourceId: String): Intent {
+  private fun toIntent(action: ActionJson, sourceId: String, ts: Long): Intent {
     return Intent(
       id = "i-" + sourceId + "-" + System.identityHashCode(this),
       sourceId = sourceId,
@@ -49,6 +49,7 @@ class Interpreter(private val program: ProgramJson) {
       qty = null,
       priceHint = null,
       meta = emptyMap(),
+      ts = ts,
     )
   }
 

@@ -70,5 +70,6 @@ data class IntentEntity(
       qty = qty,
       priceHint = priceHint,
       meta = meta(json),
+      ts = ts,
     )
 }

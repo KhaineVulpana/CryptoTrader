@@ -56,6 +56,7 @@ data class Intent(
   val qty: Double? = null,
   val priceHint: Double? = null,
   val meta: Map<String, String> = emptyMap(),
+  val ts: Long? = null,
 )
 
 data class Order(

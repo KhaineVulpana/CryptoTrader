@@ -28,4 +28,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "CryptoTrader"
-include(":contracts", ":core", ":data", ":runtime", ":paperbroker", ":livebroker", ":ui", ":mocks", ":tools", ":app")
+include(":contracts", ":core", ":data", ":runtime", ":paperbroker", ":livebroker", ":ui", ":mocks", ":tools", ":app", ":persistence")

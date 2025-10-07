@@ -2,7 +2,9 @@ package com.kevin.cryptotrader.tools.backtest
 
 import java.nio.file.Files
 import java.nio.file.Paths
+import com.kevin.cryptotrader.contracts.Interval
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class BacktesterTest {
@@ -46,16 +48,23 @@ class BacktesterTest {
     ).any { Files.exists(it) }
     assertTrue(exists)
 
-    val bt = Backtester(BacktestConfig(
-      priceCsvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv",
-      programJson = program,
-      priority = listOf("strategy.", "automation."),
-    ))
-    val m = bt.run()
-    assertTrue(m.bars > 0)
-    // Strategy should produce at least some intents and orders
-    assertTrue(m.intents >= 0)
-    assertTrue(m.orders >= 0)
+    val bt = Backtester(
+      BacktestConfig(
+        runId = "wf_fixture",
+        programJson = program,
+        symbol = "BTCUSDT",
+        priceCsvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv",
+        interval = Interval.H1,
+        defaultIntentMeta = mapOf("risk.notional" to "1000"),
+      ),
+      resultService = null,
+    )
+    val result = bt.run()
+    assertTrue(result.slices.isNotEmpty())
+    val slice = result.slices.first()
+    assertTrue(slice.equity.isNotEmpty())
+    assertTrue(slice.metrics.averageExposure >= 0.0)
+    assertEquals(result.aggregated, slice.metrics)
   }
 }
 
