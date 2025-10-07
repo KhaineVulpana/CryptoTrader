@@ -8,6 +8,7 @@ import com.kevin.cryptotrader.contracts.NetPlan
 import com.kevin.cryptotrader.contracts.Order
 import com.kevin.cryptotrader.contracts.OrderType
 import com.kevin.cryptotrader.contracts.Position
+import com.kevin.cryptotrader.contracts.RiskResult
 import com.kevin.cryptotrader.contracts.RiskSizer
 import com.kevin.cryptotrader.contracts.Side
 import com.kevin.cryptotrader.contracts.TIF
@@ -180,7 +181,7 @@ class ExecutionCoordinatorTest {
 
     private class PassthroughRiskSizer : RiskSizer {
         var lastNetPlan: NetPlan? = null
-        override fun size(netPlan: NetPlan, account: AccountSnapshot): com.kevin.cryptotrader.contracts.RiskResult {
+        override fun size(netPlan: NetPlan, account: AccountSnapshot): RiskResult {
             lastNetPlan = netPlan
             val orders = netPlan.intents.mapIndexed { index, intent ->
                 Order(
@@ -195,7 +196,7 @@ class ExecutionCoordinatorTest {
                     ts = 0L
                 )
             }
-            return com.kevin.cryptotrader.contracts.RiskResult(orders)
+            return RiskResult(orders)
         }
     }
 }

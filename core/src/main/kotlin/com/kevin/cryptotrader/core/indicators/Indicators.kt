@@ -207,17 +207,5 @@ class ChandelierExitIndicator(
     val longExit = highest - multiplier * atrValue
     val shortExit = lowest + multiplier * atrValue
     return ChandelierExit(longExit, shortExit)
-class RocIndicator(private val period: Int) {
-  private val window = ArrayDeque<Double>(period + 1)
-
-  fun update(x: Double): Double? {
-    window.addLast(x)
-    if (window.size > period + 1) {
-      window.removeFirst()
-    }
-    if (window.size <= period) return null
-    val base = window.first()
-    if (base == 0.0) return 0.0
-    return (x - base) / base
   }
 }

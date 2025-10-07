@@ -42,14 +42,15 @@ class ExecutionCoordinator(
         val account = broker.account()
         val riskResult: com.kevin.cryptotrader.contracts.RiskResult
         val riskNs = measureNanoTime { riskResult = riskSizer.size(netPlan, account) }
-        if (riskResult.orders.isEmpty()) {
+        val allOrders = riskResult.orders + riskResult.stopOrders
+        if (allOrders.isEmpty()) {
             recordResourceUsage(now)
             return
         }
-        ledger.append(LedgerEvent.OrdersSized(now, riskResult.orders))
+        ledger.append(LedgerEvent.OrdersSized(now, allOrders))
 
         val placementNs = measureNanoTime {
-            for (order in riskResult.orders) {
+            for (order in allOrders) {
                 val brokerId = broker.place(order)
                 ledger.append(LedgerEvent.OrderRouted(clock.millis(), order, brokerId))
             }

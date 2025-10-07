@@ -49,11 +49,9 @@ class AutomationRuntimeImpl : AutomationRuntime {
 
   private class LoadedProgramImpl(val program: ProgramJson) : LoadedProgram {
     fun run(env: RuntimeEnv): Flow<Intent> {
-      val inputs: List<InputBar> = when {
-        program.inputsInline != null -> program.inputsInline.map { InputBar(it.ts, it.open, it.high, it.low, it.close, it.volume) }
-        program.inputsCsvPath != null -> InputLoader.fromCsv(program.inputsCsvPath)
-        else -> emptyList()
-      }
+      val inputsBySymbol = InputLoader.loadInputs(program)
+      val defaultSymbol = program.defaultSymbol ?: inputsBySymbol.keys.firstOrNull()
+      val primaryInputs = defaultSymbol?.let { inputsBySymbol[it] }.orEmpty()
       val interp = Interpreter(program)
       TelemetryCenter.logEvent(
         module = TelemetryModule.RUNTIME,
@@ -61,13 +59,19 @@ class AutomationRuntimeImpl : AutomationRuntime {
         message = "Prepared runtime inputs",
         fields = mapOf(
           "automationId" to program.id,
-          "bars" to inputs.size.toString(),
+          "streams" to inputsBySymbol.size.toString(),
+          "bars" to inputsBySymbol.values.sumOf { it.size }.toString(),
           "interval" to program.interval.name
         )
       )
-      recordDataGaps(inputs)
+      recordDataGaps(inputsBySymbol)
       var emitted = 0
-      return interp.run(inputs)
+      val flow = if (inputsBySymbol.isEmpty()) {
+        interp.run(primaryInputs)
+      } else {
+        interp.run(inputsBySymbol)
+      }
+      return flow
         .onStart {
           TelemetryCenter.logEvent(
             module = TelemetryModule.RUNTIME,
@@ -114,39 +118,50 @@ class AutomationRuntimeImpl : AutomationRuntime {
         }
     }
 
-    private fun recordDataGaps(inputs: List<InputBar>) {
-      if (inputs.size <= 1) {
+    private fun recordDataGaps(inputs: Map<String, List<InputBar>>) {
+      if (inputs.isEmpty()) {
         TelemetryCenter.recordDataGap(
           module = TelemetryModule.RUNTIME,
           streamId = program.id,
           gapSeconds = 0.0,
-          fields = mapOf("bars" to inputs.size.toString())
+          fields = mapOf("bars" to "0")
         )
         return
       }
       val expectedGapMs = intervalToMillis(program.interval)
-      var maxGapMs = 0L
-      var gaps = 0
-      inputs.sortedBy { it.ts }.zipWithNext { a, b ->
-        val delta = b.ts - a.ts
-        val gap = delta - expectedGapMs
-        if (gap > 0) {
-          gaps += 1
-          if (gap > maxGapMs) {
-            maxGapMs = gap
+      inputs.forEach { (symbol, bars) ->
+        if (bars.size <= 1) {
+          TelemetryCenter.recordDataGap(
+            module = TelemetryModule.RUNTIME,
+            streamId = "${program.id}:$symbol",
+            gapSeconds = 0.0,
+            fields = mapOf("bars" to bars.size.toString())
+          )
+        } else {
+          var maxGapMs = 0L
+          var gaps = 0
+          bars.sortedBy { it.ts }.zipWithNext { a, b ->
+            val delta = b.ts - a.ts
+            val gap = delta - expectedGapMs
+            if (gap > 0) {
+              gaps += 1
+              if (gap > maxGapMs) {
+                maxGapMs = gap
+              }
+            }
           }
+          val fields = mutableMapOf(
+            "bars" to bars.size.toString(),
+            "gaps" to gaps.toString()
+          )
+          TelemetryCenter.recordDataGap(
+            module = TelemetryModule.RUNTIME,
+            streamId = "${program.id}:$symbol",
+            gapSeconds = maxGapMs / 1000.0,
+            fields = fields
+          )
         }
       }
-      val fields = mutableMapOf(
-        "bars" to inputs.size.toString(),
-        "gaps" to gaps.toString()
-      )
-      TelemetryCenter.recordDataGap(
-        module = TelemetryModule.RUNTIME,
-        streamId = program.id,
-        gapSeconds = maxGapMs / 1000.0,
-        fields = fields
-      )
     }
 
     private fun intervalToMillis(interval: com.kevin.cryptotrader.contracts.Interval): Long = when (interval) {

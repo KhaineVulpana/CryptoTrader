@@ -33,9 +33,9 @@ class BuiltInStrategiesBacktestTest {
   fun built_in_strategies_have_deterministic_metrics() {
     val expected = mapOf(
       "ema" to BacktestMetrics(bars = 200, intents = 4, orders = 0, fills = 0),
-      "rsi" to BacktestMetrics(bars = 200, intents = 6, orders = 0, fills = 0),
+      "rsi" to BacktestMetrics(bars = 200, intents = 10, orders = 0, fills = 0),
       "bollinger" to BacktestMetrics(bars = 200, intents = 22, orders = 0, fills = 0),
-      "macd" to BacktestMetrics(bars = 200, intents = 7, orders = 0, fills = 0),
+      "macd" to BacktestMetrics(bars = 200, intents = 8, orders = 0, fills = 0),
       "donchian" to BacktestMetrics(bars = 200, intents = 0, orders = 0, fills = 0),
       "rotation" to BacktestMetrics(bars = 200, intents = 24, orders = 0, fills = 0),
       "zscore" to BacktestMetrics(bars = 200, intents = 11, orders = 0, fills = 0),

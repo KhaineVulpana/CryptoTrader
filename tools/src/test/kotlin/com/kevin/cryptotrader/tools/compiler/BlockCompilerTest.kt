@@ -1,7 +1,5 @@
 package com.kevin.cryptotrader.tools.compiler
 
-import com.kevin.cryptotrader.runtime.vm.ProgramJson
-import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.test.Test
@@ -14,7 +12,7 @@ class BlockCompilerTest {
     val path = resolvePath("fixtures/automations/ema_cross.json")
     val src = Files.readString(path)
     val out = BlockCompiler.compile(src)
-    val program = Json { ignoreUnknownKeys = true }.decodeFromString(ProgramJson.serializer(), out)
+    val program = out.program
     assertEquals(2, program.series.size)
     assertTrue(program.rules.isNotEmpty())
   }

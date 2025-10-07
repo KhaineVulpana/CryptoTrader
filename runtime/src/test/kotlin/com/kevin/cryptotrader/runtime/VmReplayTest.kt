@@ -28,14 +28,18 @@ class VmReplayTest {
             "id":"long",
             "oncePerBar":true,
             "guard":{ "type":"crosses", "left":{"type":"series","name":"ema12"}, "dir":"ABOVE", "right":{"type":"series","name":"ema26"} },
-            "action":{ "type":"EMIT", "symbol":"BTCUSDT", "side":"BUY", "kind":"signal"},
+            "actions":[
+              { "type":"emitOrder", "symbol":"BTCUSDT", "side":"BUY", "kind":"signal" }
+            ],
             "quota":{ "max": 10, "windowMs": 86400000 }
           },
           {
             "id":"short",
             "oncePerBar":true,
             "guard":{ "type":"crosses", "left":{"type":"series","name":"ema12"}, "dir":"BELOW", "right":{"type":"series","name":"ema26"} },
-            "action":{ "type":"EMIT", "symbol":"BTCUSDT", "side":"SELL", "kind":"signal"},
+            "actions":[
+              { "type":"emitOrder", "symbol":"BTCUSDT", "side":"SELL", "kind":"signal" }
+            ],
             "quota":{ "max": 10, "windowMs": 86400000 }
           }
         ]
@@ -69,7 +73,9 @@ class VmReplayTest {
             "id":"r1",
             "oncePerBar":false,
             "guard":{ "type":"threshold", "left":{"type":"series","name":"close"}, "op":"GT", "right":{"type":"const","value":10.0} },
-            "action":{ "type":"EMIT", "symbol":"X", "side":"BUY", "kind":"thresh"},
+            "actions":[
+              { "type":"emitOrder", "symbol":"X", "side":"BUY", "kind":"thresh" }
+            ],
             "quota":{ "max": 1, "windowMs": 3600000 },
             "delayMs": 1000
           }

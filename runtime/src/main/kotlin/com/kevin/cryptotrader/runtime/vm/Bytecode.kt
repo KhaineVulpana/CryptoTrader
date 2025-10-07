@@ -38,6 +38,7 @@ data class SeriesDefJson(
   val source: SourceKey = SourceKey.CLOSE,
   val symbol: String? = null,
   val params: Map<String, Double> = emptyMap(),
+  val meta: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -73,6 +74,7 @@ data class RuleJson(
   val actions: List<ActionJson> = emptyList(),
   val quota: QuotaJson? = null,
   val delayMs: Long? = null,
+  val meta: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -260,4 +262,3 @@ data class PnLEventJson(
   val realized: Double = 0.0,
   val unrealized: Double = 0.0,
 )
-
