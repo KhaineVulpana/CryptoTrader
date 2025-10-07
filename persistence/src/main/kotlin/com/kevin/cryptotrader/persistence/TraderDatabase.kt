@@ -2,6 +2,9 @@ package com.kevin.cryptotrader.persistence
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.kevin.cryptotrader.contracts.LogLevel
+import com.kevin.cryptotrader.contracts.TelemetryModule
+import com.kevin.cryptotrader.core.telemetry.TelemetryCenter
 import com.kevin.cryptotrader.persistence.dao.AutomationStateDao
 import com.kevin.cryptotrader.persistence.dao.CandleDao
 import com.kevin.cryptotrader.persistence.dao.FillDao
@@ -30,10 +33,28 @@ import com.kevin.cryptotrader.persistence.entity.PositionEntity
     AutomationStateEntity::class,
     LedgerEventEntity::class,
   ],
-  version = 2,
+  version = 3,
   exportSchema = false,
 )
 abstract class TraderDatabase : RoomDatabase() {
+  init {
+    TelemetryCenter.logEvent(
+      module = TelemetryModule.PERSISTENCE,
+      level = LogLevel.INFO,
+      message = "TraderDatabase schema registered",
+      fields = mapOf(
+        "version" to "2",
+        "entities" to "8"
+      )
+    )
+    TelemetryCenter.recordDataGap(
+      module = TelemetryModule.PERSISTENCE,
+      streamId = "room",
+      gapSeconds = 0.0,
+      fields = mapOf("status" to "initialized")
+    )
+  }
+
   abstract fun candleDao(): CandleDao
 
   abstract fun intentDao(): IntentDao

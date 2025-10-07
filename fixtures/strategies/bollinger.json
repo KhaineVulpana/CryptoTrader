@@ -1,0 +1,62 @@
+{
+  "id": "strategy_bollinger",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"}
+  ],
+  "series": [
+    {"name": "bb_mid", "type": "BOLLINGER_MIDDLE", "period": 20, "symbol": "BTCUSDT", "params": {"k": 2.0}},
+    {"name": "bb_upper", "type": "BOLLINGER_UPPER", "period": 20, "symbol": "BTCUSDT", "params": {"k": 2.0}},
+    {"name": "bb_lower", "type": "BOLLINGER_LOWER", "period": 20, "symbol": "BTCUSDT", "params": {"k": 2.0}}
+  ],
+  "rules": [
+    {
+      "id": "bb_long",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "oncePerBar": true,
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "close"},
+        "dir": "ABOVE",
+        "right": {"type": "series", "name": "bb_lower"}
+      },
+      "actions": [
+        {
+          "type": "emitOrder",
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "kind": "entry",
+          "price": {"type": "series", "name": "close"},
+          "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.012"}
+        },
+        {"type": "trailStop", "symbol": "BTCUSDT", "side": "SELL", "trailPct": 1.5, "kind": "stop"}
+      ],
+      "quota": {"max": 60, "windowMs": 86400000}
+    },
+    {
+      "id": "bb_short",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "oncePerBar": true,
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "close"},
+        "dir": "BELOW",
+        "right": {"type": "series", "name": "bb_upper"}
+      },
+      "actions": [
+        {
+          "type": "emitOrder",
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "kind": "entry",
+          "price": {"type": "series", "name": "close"},
+          "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.012"}
+        },
+        {"type": "trailStop", "symbol": "BTCUSDT", "side": "BUY", "trailPct": 1.5, "kind": "stop"}
+      ],
+      "quota": {"max": 60, "windowMs": 86400000}
+    }
+  ]
+}

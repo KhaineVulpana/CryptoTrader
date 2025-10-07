@@ -1,0 +1,45 @@
+{
+  "id": "strategy_donchian",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"}
+  ],
+  "series": [
+    {"name": "dc_upper", "type": "DONCHIAN_UPPER", "period": 20, "symbol": "BTCUSDT"},
+    {"name": "dc_lower", "type": "DONCHIAN_LOWER", "period": 20, "symbol": "BTCUSDT"}
+  ],
+  "rules": [
+    {
+      "id": "donchian_long",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "oncePerBar": true,
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "close"},
+        "dir": "ABOVE",
+        "right": {"type": "series", "name": "dc_upper"}
+      },
+      "actions": [
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "BUY", "kind": "entry", "price": {"type": "series", "name": "close"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.008"}}
+      ],
+      "quota": {"max": 40, "windowMs": 86400000}
+    },
+    {
+      "id": "donchian_short",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "oncePerBar": true,
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "close"},
+        "dir": "BELOW",
+        "right": {"type": "series", "name": "dc_lower"}
+      },
+      "actions": [
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "SELL", "kind": "entry", "price": {"type": "series", "name": "close"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.008"}}
+      ],
+      "quota": {"max": 40, "windowMs": 86400000}
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "id": "strategy_macd",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"}
+  ],
+  "series": [
+    {"name": "macd_line", "type": "MACD", "symbol": "BTCUSDT", "params": {"fast": 12.0, "slow": 26.0, "signal": 9.0}},
+    {"name": "macd_signal", "type": "MACD_SIGNAL", "symbol": "BTCUSDT", "params": {"fast": 12.0, "slow": 26.0, "signal": 9.0}}
+  ],
+  "rules": [
+    {
+      "id": "macd_long",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "macd_line"},
+        "dir": "ABOVE",
+        "right": {"type": "series", "name": "macd_signal"}
+      },
+      "actions": [
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "BUY", "kind": "entry", "price": {"type": "series", "name": "close"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.01"}}
+      ]
+    },
+    {
+      "id": "macd_short",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "series", "name": "macd_line"},
+        "dir": "BELOW",
+        "right": {"type": "series", "name": "macd_signal"}
+      },
+      "actions": [
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "SELL", "kind": "entry", "price": {"type": "series", "name": "close"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.01"}}
+      ]
+    }
+  ]
+}

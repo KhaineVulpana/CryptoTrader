@@ -1,0 +1,46 @@
+{
+  "id": "strategy_rotation",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"},
+    {"symbol": "ETHUSDT", "csvPath": "fixtures/ohlcv/ETHUSDT_1h_sample.csv"}
+  ],
+  "series": [
+    {"name": "roc_btc", "type": "ROC", "period": 24, "symbol": "BTCUSDT"},
+    {"name": "roc_eth", "type": "ROC", "period": 24, "symbol": "ETHUSDT"}
+  ],
+  "rules": [
+    {
+      "id": "rotate_btc",
+      "event": {"type": "schedule", "everyMs": 86400000},
+      "guard": {
+        "type": "threshold",
+        "left": {"type": "series", "name": "roc_btc"},
+        "op": "GT",
+        "right": {"type": "series", "name": "roc_eth"}
+      },
+      "actions": [
+        {"type": "log", "message": "Rotation favoring BTC", "fields": {"roc_btc": {"type": "series", "name": "roc_btc"}, "roc_eth": {"type": "series", "name": "roc_eth"}}},
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "BUY", "kind": "rotation", "price": {"type": "series", "name": "close:BTCUSDT"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.02"}},
+        {"type": "emitOrder", "symbol": "ETHUSDT", "side": "SELL", "kind": "rotation", "price": {"type": "series", "name": "close:ETHUSDT"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.02"}}
+      ]
+    },
+    {
+      "id": "rotate_eth",
+      "event": {"type": "schedule", "everyMs": 86400000},
+      "guard": {
+        "type": "threshold",
+        "left": {"type": "series", "name": "roc_eth"},
+        "op": "GT",
+        "right": {"type": "series", "name": "roc_btc"}
+      },
+      "actions": [
+        {"type": "log", "message": "Rotation favoring ETH", "fields": {"roc_btc": {"type": "series", "name": "roc_btc"}, "roc_eth": {"type": "series", "name": "roc_eth"}}},
+        {"type": "emitOrder", "symbol": "ETHUSDT", "side": "BUY", "kind": "rotation", "price": {"type": "series", "name": "close:ETHUSDT"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.02"}},
+        {"type": "emitOrder", "symbol": "BTCUSDT", "side": "SELL", "kind": "rotation", "price": {"type": "series", "name": "close:BTCUSDT"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.02"}}
+      ]
+    }
+  ]
+}

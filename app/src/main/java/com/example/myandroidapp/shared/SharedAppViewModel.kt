@@ -1,9 +1,16 @@
 package com.example.myandroidapp.shared
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
+import com.kevin.cryptotrader.contracts.FeatureUsageEvent
+import com.kevin.cryptotrader.contracts.LogLevel
+import com.kevin.cryptotrader.contracts.TelemetryConsent
+import com.kevin.cryptotrader.contracts.TelemetryModule
+import com.kevin.cryptotrader.core.telemetry.TelemetryCenter
 
 /**
  * Lightweight summary of a saved automation authored via the block editor.
@@ -13,11 +20,58 @@ data class AutomationVisual(
     val version: Int,
     val json: String,
     val nodeCount: Int,
-    val description: String = ""
+    val description: String = "",
 )
 
 class SharedAppViewModel : ViewModel() {
     var selectedTicker = mutableStateOf<String?>(null)
     var searchQuery = mutableStateOf("")
     var savedAutomations: SnapshotStateList<AutomationVisual> = mutableStateListOf()
+    var telemetryConsent by mutableStateOf(TelemetryCenter.consent.value)
+
+    init {
+        TelemetryCenter.logEvent(
+            module = TelemetryModule.APP,
+            level = LogLevel.INFO,
+            message = "App view model initialized",
+        )
+    }
+
+    fun setAnalyticsOptIn(enabled: Boolean) {
+        updateConsent(telemetryConsent.copy(analyticsEnabled = enabled))
+    }
+
+    fun setCrashOptIn(enabled: Boolean) {
+        updateConsent(telemetryConsent.copy(crashReportsEnabled = enabled))
+    }
+
+    private fun updateConsent(consent: TelemetryConsent) {
+        telemetryConsent = consent
+        TelemetryCenter.updateConsent(consent)
+        TelemetryCenter.logEvent(
+            module = TelemetryModule.APP,
+            level = LogLevel.INFO,
+            message = "Telemetry consent changed",
+            fields = mapOf(
+                "analytics" to consent.analyticsEnabled.toString(),
+                "crash" to consent.crashReportsEnabled.toString(),
+            ),
+        )
+    }
+
+    fun recordFeature(name: String, metadata: Map<String, String> = emptyMap()) {
+        TelemetryCenter.trackFeature(
+            FeatureUsageEvent(
+                module = TelemetryModule.APP,
+                feature = name,
+                properties = metadata,
+            ),
+        )
+        TelemetryCenter.logEvent(
+            module = TelemetryModule.APP,
+            level = LogLevel.DEBUG,
+            message = "Feature used",
+            fields = metadata + mapOf("feature" to name),
+        )
+    }
 }

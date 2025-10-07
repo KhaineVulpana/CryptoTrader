@@ -3,9 +3,10 @@ package com.kevin.cryptotrader.tools.compiler
 import com.kevin.cryptotrader.contracts.Interval
 import com.kevin.cryptotrader.contracts.Side
 import com.kevin.cryptotrader.runtime.vm.ActionJson
-import com.kevin.cryptotrader.runtime.vm.ActionType
 import com.kevin.cryptotrader.runtime.vm.CrossDir
+import com.kevin.cryptotrader.runtime.vm.EventJson
 import com.kevin.cryptotrader.runtime.vm.GuardJson
+import com.kevin.cryptotrader.runtime.vm.InputSourceJson
 import com.kevin.cryptotrader.runtime.vm.Operand
 import com.kevin.cryptotrader.runtime.vm.Op
 import com.kevin.cryptotrader.runtime.vm.ProgramJson
@@ -15,12 +16,13 @@ import com.kevin.cryptotrader.runtime.vm.SeriesDefJson
 import com.kevin.cryptotrader.runtime.vm.SeriesType
 import com.kevin.cryptotrader.runtime.vm.SourceKey
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -45,7 +47,7 @@ data class CompilerOutput(
 ) {
     fun programJson(pretty: Boolean = false): String {
         val json = if (pretty) Json { prettyPrint = true } else Json
-        return json.encodeToString(ProgramJson.serializer(), program)
+        return json.encodeToString(program)
     }
 }
 
@@ -214,16 +216,18 @@ private class ProgramAssembler(
     private val context: IrContext,
 ) {
     private val automation get() = context.automation
-    private val json = Json { prettyPrint = true }
 
     fun assemble(): ProgramJson {
         val interval = resolveInterval()
         val series = buildSeries()
         val rules = buildRules(interval)
+        val defaultSymbol = series.firstOrNull()?.symbol ?: "BTCUSDT"
         return ProgramJson(
             id = doc.id,
             version = 1,
             interval = interval,
+            defaultSymbol = defaultSymbol,
+            inputs = listOf(InputSourceJson(symbol = defaultSymbol, csvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv")),
             inputsCsvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv",
             series = series,
             rules = rules,
@@ -241,14 +245,66 @@ private class ProgramAssembler(
             when (indicator.indicator.lowercase()) {
                 "ema" -> {
                     val len = indicator.params["len"]?.toInt() ?: 14
-                    defs += SeriesDefJson(name = indicator.id, type = SeriesType.EMA, period = len, source = SourceKey.CLOSE)
+                    defs += SeriesDefJson(
+                        name = indicator.id,
+                        type = SeriesType.EMA,
+                        period = len,
+                        source = SourceKey.CLOSE,
+                    )
                 }
                 "rsi" -> {
                     val len = indicator.params["len"]?.toInt() ?: 14
-                    defs += SeriesDefJson(name = indicator.id, type = SeriesType.RSI, period = len, source = SourceKey.CLOSE)
+                    defs += SeriesDefJson(
+                        name = indicator.id,
+                        type = SeriesType.RSI,
+                        period = len,
+                        source = SourceKey.CLOSE,
+                    )
+                }
+                "macd" -> {
+                    val fast = indicator.params["fast"]?.toInt() ?: 12
+                    val slow = indicator.params["slow"]?.toInt() ?: 26
+                    val signal = indicator.params["signal"]?.toInt() ?: 9
+                    val params = mapOf("fast" to fast.toDouble(), "slow" to slow.toDouble(), "signal" to signal.toDouble())
+                    defs += SeriesDefJson(indicator.id + "_macd", SeriesType.MACD, params = params)
+                    defs += SeriesDefJson(indicator.id + "_signal", SeriesType.MACD_SIGNAL, params = params)
+                    defs += SeriesDefJson(indicator.id + "_hist", SeriesType.MACD_HIST, params = params)
+                }
+                "bollinger" -> {
+                    val period = indicator.params["len"]?.toInt() ?: 20
+                    val mult = indicator.params["mult"] ?: 2.0
+                    val meta = mapOf("mult" to mult.toString())
+                    defs += SeriesDefJson(indicator.id + "_mid", SeriesType.BOLLINGER_MIDDLE, period = period, meta = meta)
+                    defs += SeriesDefJson(indicator.id + "_upper", SeriesType.BOLLINGER_UPPER, period = period, meta = meta)
+                    defs += SeriesDefJson(indicator.id + "_lower", SeriesType.BOLLINGER_LOWER, period = period, meta = meta)
+                    defs += SeriesDefJson(indicator.id + "_std", SeriesType.BOLLINGER_STDDEV, period = period, meta = meta)
+                }
+                "atr" -> {
+                    val period = indicator.params["len"]?.toInt() ?: 14
+                    defs += SeriesDefJson(
+                        name = indicator.id,
+                        type = SeriesType.ATR,
+                        period = period,
+                        source = SourceKey.CLOSE,
+                    )
+                }
+                "zscore" -> {
+                    val period = indicator.params["len"]?.toInt() ?: 20
+                    defs += SeriesDefJson(
+                        name = indicator.id,
+                        type = SeriesType.ZSCORE,
+                        period = period,
+                        source = SourceKey.CLOSE,
+                    )
                 }
                 else -> {
-                    defs += SeriesDefJson(name = indicator.id, type = SeriesType.CUSTOM, period = indicator.params["len"]?.toInt(), source = SourceKey.CLOSE, meta = mapOf("indicator" to indicator.indicator))
+                    defs += SeriesDefJson(
+                        name = indicator.id,
+                        type = SeriesType.ROC,
+                        period = indicator.params["len"]?.toInt(),
+                        source = SourceKey.CLOSE,
+                        meta = mapOf("indicator" to indicator.indicator),
+                    )
                 }
             }
         }
@@ -260,46 +316,131 @@ private class ProgramAssembler(
         automation.actions.forEach { action ->
             val ancestors = ancestorsOf(action.id)
             val oncePerBar = ancestors.mapNotNull { context.logicById[it] }.any { it is OncePerBarLogicIr }
-            val cooldown = ancestors.mapNotNull { context.logicById[it] }.filterIsInstance<CooldownLogicIr>().maxOfOrNull { it.cooldownMs }
-            val cross = ancestors.mapNotNull { context.logicById[it] }.filterIsInstance<CrossLogicIr>().firstOrNull()
-            val compare = ancestors.mapNotNull { context.logicById[it] }.filterIsInstance<CompareLogicIr>().firstOrNull()
-            val eventMeta = buildEventMeta(ancestors)
-            val guard = when {
-                cross != null -> buildCrossGuard(cross)
-                compare != null -> buildCompareGuard(compare)
-                else -> GuardJson.Threshold(Operand.Const(1.0), Op.GT, Operand.Const(0.0))
-            }
+            val cooldown = ancestors.mapNotNull { context.logicById[it] }
+                .filterIsInstance<CooldownLogicIr>()
+                .maxOfOrNull { it.cooldownMs }
+            val guard = buildGuard(ancestors)
             val ruleMeta = buildRuleMeta(ancestors)
-            val actionJson = buildActionJson(action, ruleMeta.toMutableMap())
+            val actions = buildActions(action, ancestors, ruleMeta)
+            val event = resolveEvent(ancestors)
             val quota = if (oncePerBar) QuotaJson(1, intervalToMillis(interval)) else null
             rules += RuleJson(
                 id = action.id,
+                event = event,
                 oncePerBar = oncePerBar,
                 guard = guard,
-                action = actionJson,
+                actions = actions,
                 quota = quota,
                 delayMs = cooldown,
-                meta = ruleMeta + eventMeta,
+                meta = ruleMeta,
             )
         }
         return rules
     }
 
-    private fun buildEventMeta(ancestors: Set<String>): Map<String, String> {
+    private fun resolveEvent(ancestors: Set<String>): EventJson {
         val eventId = ancestors.firstOrNull { context.eventsById.containsKey(it) }
         val event = eventId?.let { context.eventsById[it] }
         return when (event) {
-            is CandleEventIr -> mapOf("event.type" to "onCandle", "event.interval" to event.interval.name)
-            is TickEventIr -> mapOf("event.type" to "onTick")
-            is ScheduleEventIr -> mapOf("event.type" to "onSchedule", "event.cron" to event.cron, "event.timezone" to event.timezone)
-            is FillEventIr -> mapOf("event.type" to "onFill") + (event.symbol?.let { mapOf("event.symbol" to it) } ?: emptyMap())
-            is PnLEventIr -> mapOf("event.type" to "onPnL", "event.thresholdPct" to event.thresholdPct.toString())
-            else -> emptyMap()
+            is CandleEventIr -> EventJson.Candle()
+            is TickEventIr -> EventJson.Candle()
+            is ScheduleEventIr -> EventJson.Schedule()
+            is FillEventIr -> EventJson.Fill(symbol = event.symbol, side = null)
+            is PnLEventIr -> EventJson.PnL(symbol = null, realizedThreshold = event.thresholdPct, unrealizedThreshold = null)
+            else -> EventJson.Candle()
+        }
+    }
+
+    private fun buildGuard(ancestors: Set<String>): GuardJson? {
+        val cross = ancestors.mapNotNull { context.logicById[it] }.filterIsInstance<CrossLogicIr>().firstOrNull()
+        if (cross != null) return buildCrossGuard(cross)
+        val compare = ancestors.mapNotNull { context.logicById[it] }.filterIsInstance<CompareLogicIr>().firstOrNull()
+        if (compare != null) return buildCompareGuard(compare)
+        return GuardJson.Always
+    }
+
+    private fun buildActions(action: ActionIr, ancestors: Set<String>, ruleMeta: Map<String, String>): List<ActionJson> {
+        val metaStrings = ruleMeta.toMutableMap()
+        ancestors.mapNotNull { context.riskById[it] }.forEach { risk ->
+            when (risk) {
+                is RiskSizeIr -> {
+                    risk.riskPct?.let { metaStrings["risk.pct"] = it.toString() }
+                    risk.notionalUsd?.let { metaStrings["risk.notional"] = it.toString() }
+                }
+                is AtrStopIr -> metaStrings["risk.atr.mult"] = risk.multiplier.toString()
+                is TrailStopIr -> metaStrings["risk.trailingPct"] = risk.trailingPct.toString()
+            }
+        }
+        return when (action) {
+            is EmitOrderIr -> {
+                listOf(
+                    ActionJson.EmitOrder(
+                        symbol = action.symbol,
+                        side = Side.valueOf(action.side.uppercase()),
+                        kind = "signal",
+                        metaStrings = metaStrings,
+                    )
+                )
+            }
+            is EmitSpreadIr -> {
+                metaStrings["spread.long"] = action.longSymbol
+                metaStrings["spread.short"] = action.shortSymbol
+                listOf(
+                    ActionJson.EmitSpread(
+                        symbol = action.longSymbol,
+                        side = Side.BUY,
+                        offsetPct = 0.0,
+                        widthPct = 0.0,
+                        metaStrings = metaStrings,
+                    )
+                )
+            }
+            is LogActionIr -> {
+                listOf(
+                    ActionJson.Log(
+                        message = action.message,
+                    )
+                )
+            }
+            is NotifyActionIr -> {
+                listOf(
+                    ActionJson.Notify(
+                        channel = action.channel,
+                        message = action.message,
+                    )
+                )
+            }
+            is AbortActionIr -> {
+                listOf(ActionJson.Abort(action.reason))
+            }
+            else -> emptyList()
         }
     }
 
     private fun buildRuleMeta(ancestors: Set<String>): Map<String, String> {
         val meta = mutableMapOf<String, String>()
+        val eventId = ancestors.firstOrNull { context.eventsById.containsKey(it) }
+        when (val event = eventId?.let { context.eventsById[it] }) {
+            is CandleEventIr -> {
+                meta["event.type"] = "onCandle"
+                meta["event.interval"] = event.interval.name
+            }
+            is TickEventIr -> meta["event.type"] = "onTick"
+            is ScheduleEventIr -> {
+                meta["event.type"] = "onSchedule"
+                meta["event.cron"] = event.cron
+                meta["event.timezone"] = event.timezone
+            }
+            is FillEventIr -> {
+                meta["event.type"] = "onFill"
+                event.symbol?.let { meta["event.symbol"] = it }
+            }
+            is PnLEventIr -> {
+                meta["event.type"] = "onPnL"
+                meta["event.thresholdPct"] = event.thresholdPct.toString()
+            }
+            null -> Unit
+        }
         ancestors.mapNotNull { context.logicById[it] }.forEach { logic ->
             when (logic) {
                 is IfLogicIr -> logic.label?.let { meta["logic.if"] = it }
@@ -313,58 +454,12 @@ private class ProgramAssembler(
                 else -> Unit
             }
         }
-        ancestors.mapNotNull { context.riskById[it] }.forEach { risk ->
-            when (risk) {
-                is RiskSizeIr -> {
-                    risk.riskPct?.let { meta["risk.pct"] = it.toString() }
-                    risk.notionalUsd?.let { meta["risk.notional"] = it.toString() }
-                }
-                is AtrStopIr -> meta["risk.atr.mult"] = risk.multiplier.toString()
-                is TrailStopIr -> meta["risk.trailingPct"] = risk.trailingPct.toString()
-            }
-        }
         ancestors.mapNotNull { context.universesById[it] }.forEach { universe ->
-            when (universe) {
-                is StaticUniverseIr -> meta["universe.symbols"] = universe.symbols.joinToString(",")
+            if (universe is StaticUniverseIr) {
+                meta["universe.symbols"] = universe.symbols.joinToString(",")
             }
         }
         return meta
-    }
-
-    private fun buildActionJson(action: ActionIr, baseMeta: MutableMap<String, String>): ActionJson {
-        return when (action) {
-            is EmitOrderIr -> ActionJson(
-                type = ActionType.EMIT,
-                symbol = action.symbol,
-                side = Side.valueOf(action.side.uppercase()),
-                kind = "signal",
-                meta = baseMeta,
-            )
-            is EmitSpreadIr -> {
-                baseMeta["spread.long"] = action.longSymbol
-                baseMeta["spread.short"] = action.shortSymbol
-                ActionJson(
-                    type = ActionType.EMIT_SPREAD,
-                    symbol = action.longSymbol,
-                    side = Side.BUY,
-                    kind = "spread",
-                    meta = baseMeta,
-                )
-            }
-            is LogActionIr -> {
-                baseMeta["log.message"] = action.message
-                ActionJson(ActionType.LOG, symbol = "", side = Side.BUY, kind = "log", meta = baseMeta)
-            }
-            is NotifyActionIr -> {
-                baseMeta["notify.channel"] = action.channel
-                baseMeta["notify.message"] = action.message
-                ActionJson(ActionType.NOTIFY, symbol = "", side = Side.BUY, kind = "notify", meta = baseMeta)
-            }
-            is AbortActionIr -> {
-                baseMeta["abort.reason"] = action.reason
-                ActionJson(ActionType.ABORT, symbol = "", side = Side.BUY, kind = "abort", meta = baseMeta)
-            }
-        }
     }
 
     private fun buildCrossGuard(cross: CrossLogicIr): GuardJson {

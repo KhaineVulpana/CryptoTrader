@@ -3,9 +3,10 @@ package com.kevin.cryptotrader.tools.compiler
 import com.kevin.cryptotrader.contracts.Interval
 import com.kevin.cryptotrader.contracts.Side
 import com.kevin.cryptotrader.runtime.vm.ActionJson
-import com.kevin.cryptotrader.runtime.vm.ActionType
 import com.kevin.cryptotrader.runtime.vm.CrossDir
+import com.kevin.cryptotrader.runtime.vm.EventJson
 import com.kevin.cryptotrader.runtime.vm.GuardJson
+import com.kevin.cryptotrader.runtime.vm.InputSourceJson
 import com.kevin.cryptotrader.runtime.vm.Operand
 import com.kevin.cryptotrader.runtime.vm.Op
 import com.kevin.cryptotrader.runtime.vm.ProgramJson
@@ -44,11 +45,14 @@ object DslParityFixtures {
         EdgeIr("r1", "a1"),
       ),
     )
-    val ruleMeta = mapOf("risk.pct" to "1.0", "event.type" to "onCandle", "event.interval" to "H1")
+    val ruleMeta = mapOf("event.type" to "onCandle", "event.interval" to "H1")
+    val emitMeta = ruleMeta + mapOf("risk.pct" to "1.0")
     val program = ProgramJson(
       id = "emaCross",
       version = 1,
       interval = Interval.H1,
+      defaultSymbol = "BTCUSDT",
+      inputs = listOf(InputSourceJson(symbol = "BTCUSDT", csvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv")),
       inputsCsvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv",
       series = listOf(
         SeriesDefJson(name = "i1", type = SeriesType.EMA, period = 50, source = SourceKey.CLOSE),
@@ -57,14 +61,16 @@ object DslParityFixtures {
       rules = listOf(
         RuleJson(
           id = "a1",
+          event = EventJson.Candle(),
           oncePerBar = true,
           guard = GuardJson.Crosses(Operand.Series("i1"), CrossDir.ABOVE, Operand.Series("i2")),
-          action = ActionJson(
-            type = ActionType.EMIT,
-            symbol = "BTCUSDT",
-            side = Side.BUY,
-            kind = "signal",
-            meta = mapOf("risk.pct" to "1.0"),
+          actions = listOf(
+            ActionJson.EmitOrder(
+              symbol = "BTCUSDT",
+              side = Side.BUY,
+              kind = "signal",
+              metaStrings = emitMeta,
+            )
           ),
           quota = QuotaJson(1, 3_600_000),
           delayMs = null,
@@ -145,100 +151,86 @@ object DslParityFixtures {
       "logic.forEach" to "u1",
       "logic.rank.metric" to "momentum",
       "logic.rank.limit" to "2",
-      "risk.pct" to "2.5",
-      "risk.atr.mult" to "2.0",
-      "risk.trailingPct" to "4.0",
       "universe.symbols" to "BTCUSDT,ETHUSDT,SOLUSDT",
-    )
-
-    val eventMeta = mapOf(
       "event.type" to "onSchedule",
       "event.cron" to "0 * * * *",
       "event.timezone" to "UTC",
     )
 
-    val emitRuleMeta = baseMeta
-    val logRuleMeta = baseMeta + mapOf("logic.math" to "(a-b)/b")
-    val notifyRuleMeta = baseMeta + mapOf("logic.math" to "(a-b)/b")
-    val abortRuleMeta = baseMeta + mapOf(
-      "logic.math" to "(a-b)/b",
-      "logic.if" to "oversold",
-      "logic.branch" to "else",
+    val emitMeta = baseMeta + mapOf(
+      "risk.pct" to "2.5",
+      "risk.atr.mult" to "2.0",
+      "risk.trailingPct" to "4.0",
+      "spread.long" to "BTCUSDT",
+      "spread.short" to "ETHUSDT",
     )
 
-    val emitActionMeta = emitRuleMeta + mapOf("spread.long" to "BTCUSDT", "spread.short" to "ETHUSDT")
-    val logActionMeta = logRuleMeta + mapOf("log.message" to "Entering spread")
-    val notifyActionMeta = notifyRuleMeta + mapOf("notify.channel" to "push", "notify.message" to "Spread entered")
-    val abortActionMeta = abortRuleMeta + mapOf("abort.reason" to "Risk breach")
+    val logMeta = baseMeta + mapOf("logic.math" to "(a-b)/b")
+    val notifyMeta = logMeta
+    val abortMeta = logMeta + mapOf("logic.if" to "oversold", "logic.branch" to "else")
 
     val program = ProgramJson(
       id = "alertWorkflow",
       version = 1,
       interval = Interval.H1,
+      defaultSymbol = "BTCUSDT",
+      inputs = listOf(InputSourceJson(symbol = "BTCUSDT", csvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv")),
       inputsCsvPath = "fixtures/ohlcv/BTCUSDT_1h_sample.csv",
       series = listOf(
-        SeriesDefJson(name = "i1", type = SeriesType.RSI, period = 14, source = SourceKey.CLOSE)
+        SeriesDefJson(name = "i1", type = SeriesType.RSI, period = 14, source = SourceKey.CLOSE),
       ),
       rules = listOf(
         RuleJson(
           id = "emit1",
+          event = EventJson.Schedule(),
           oncePerBar = false,
           guard = GuardJson.Threshold(Operand.Series("i1"), Op.LT, Operand.Const(30.0)),
-          action = ActionJson(
-            type = ActionType.EMIT_SPREAD,
-            symbol = "BTCUSDT",
-            side = Side.BUY,
-            kind = "spread",
-            meta = emitActionMeta,
+          actions = listOf(
+            ActionJson.EmitSpread(
+              symbol = "BTCUSDT",
+              side = Side.BUY,
+              offsetPct = 0.0,
+              widthPct = 0.0,
+              metaStrings = emitMeta,
+            )
           ),
           quota = null,
           delayMs = 300000,
-          meta = emitRuleMeta + eventMeta,
+          meta = baseMeta,
         ),
         RuleJson(
           id = "log1",
+          event = EventJson.Schedule(),
           oncePerBar = false,
           guard = GuardJson.Threshold(Operand.Series("i1"), Op.LT, Operand.Const(30.0)),
-          action = ActionJson(
-            type = ActionType.LOG,
-            symbol = "",
-            side = Side.BUY,
-            kind = "log",
-            meta = logActionMeta,
+          actions = listOf(
+            ActionJson.Log(message = "Entering spread"),
           ),
           quota = null,
           delayMs = 300000,
-          meta = logRuleMeta + eventMeta,
+          meta = logMeta,
         ),
         RuleJson(
           id = "notify1",
+          event = EventJson.Schedule(),
           oncePerBar = false,
           guard = GuardJson.Threshold(Operand.Series("i1"), Op.LT, Operand.Const(30.0)),
-          action = ActionJson(
-            type = ActionType.NOTIFY,
-            symbol = "",
-            side = Side.BUY,
-            kind = "notify",
-            meta = notifyActionMeta,
+          actions = listOf(
+            ActionJson.Notify(channel = "push", message = "Spread entered"),
           ),
           quota = null,
           delayMs = 300000,
-          meta = notifyRuleMeta + eventMeta,
+          meta = notifyMeta,
         ),
         RuleJson(
           id = "abort1",
+          event = EventJson.Schedule(),
           oncePerBar = false,
           guard = GuardJson.Threshold(Operand.Series("i1"), Op.LT, Operand.Const(30.0)),
-          action = ActionJson(
-            type = ActionType.ABORT,
-            symbol = "",
-            side = Side.BUY,
-            kind = "abort",
-            meta = abortActionMeta,
-          ),
+          actions = listOf(ActionJson.Abort(reason = "Risk breach")),
           quota = null,
           delayMs = 300000,
-          meta = abortRuleMeta + eventMeta,
+          meta = abortMeta,
         ),
       ),
     )
