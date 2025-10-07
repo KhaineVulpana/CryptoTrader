@@ -21,17 +21,22 @@ fun MarketSection(viewModel: SharedAppViewModel) {
     NavHost(navController = nav, startDestination = "Index") {
         composable("Index") { IndexTab(nav, viewModel) }
         composable("Charts") { ChartsTab(nav, viewModel) }
-        composable("Trends") { TrendsTab(nav) }
+        composable("Trends") { TrendsTab(nav, viewModel) }
     }
 }
 
 @Composable
-fun TopTabs(nav: NavController, current: String) {
+fun TopTabs(nav: NavController, current: String, viewModel: SharedAppViewModel) {
     TabRow(selectedTabIndex = marketTabs.indexOf(current)) {
         marketTabs.forEach { tab ->
             Tab(
                 selected = current == tab,
-                onClick = { nav.navigate(tab) },
+                onClick = {
+                    if (current != tab) {
+                        viewModel.recordFeature("markets_tab_$tab", mapOf("from" to current))
+                        nav.navigate(tab)
+                    }
+                },
                 text = { Text(tab) }
             )
         }
@@ -49,7 +54,7 @@ fun IndexTab(nav: NavController, viewModel: SharedAppViewModel) {
                 modifier = Modifier.fillMaxWidth().padding(16.dp)
             )
         },
-        topTabsContent = { TopTabs(nav, "Index") }
+        topTabsContent = { TopTabs(nav, "Index", viewModel) }
     ) {
         item {
             Row(
@@ -58,8 +63,8 @@ fun IndexTab(nav: NavController, viewModel: SharedAppViewModel) {
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                OutlinedButton(onClick = { /* TODO filters */ }) { Text("Filters") }
-                OutlinedButton(onClick = { /* TODO columns */ }) { Text("Columns") }
+                OutlinedButton(onClick = { viewModel.recordFeature("market_filters") }) { Text("Filters") }
+                OutlinedButton(onClick = { viewModel.recordFeature("market_columns") }) { Text("Columns") }
             }
         }
         items(listOf("BTC", "ETH", "BNB", "SOL")) { sym ->
@@ -68,6 +73,7 @@ fun IndexTab(nav: NavController, viewModel: SharedAppViewModel) {
                     .fillMaxWidth()
                     .clickable {
                         viewModel.selectedTicker.value = sym
+                        viewModel.recordFeature("select_symbol", mapOf("symbol" to sym))
                         nav.navigate("Charts")
                     }
                     .padding(16.dp),
@@ -91,14 +97,14 @@ fun ChartsTab(nav: NavController, viewModel: SharedAppViewModel) {
                 modifier = Modifier.fillMaxWidth().padding(16.dp)
             )
         },
-        topTabsContent = { TopTabs(nav, "Charts") }
+        topTabsContent = { TopTabs(nav, "Charts", viewModel) }
     ) {
         item { ChartTradeSplit(viewModel) }
     }
 }
 
 @Composable
-fun TrendsTab(nav: NavController) {
+fun TrendsTab(nav: NavController, viewModel: SharedAppViewModel) {
     ScrollAwareScaffold(
         searchBarContent = {
             OutlinedTextField(
@@ -108,8 +114,11 @@ fun TrendsTab(nav: NavController) {
                 modifier = Modifier.fillMaxWidth().padding(16.dp)
             )
         },
-        topTabsContent = { TopTabs(nav, "Trends") }
+        topTabsContent = { TopTabs(nav, "Trends", viewModel) }
     ) {
-        item { Text("Trends Placeholder", modifier = Modifier.padding(16.dp)) }
+        item {
+            Text("Trends Placeholder", modifier = Modifier.padding(16.dp))
+            viewModel.recordFeature("view_trends")
+        }
     }
 }

@@ -8,12 +8,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.example.myandroidapp.screens.ComplianceOnboardingDialog
 import com.example.myandroidapp.screens.RootNavigation
+import com.example.myandroidapp.shared.DiagnosticsManager
 import com.example.myandroidapp.security.SecurePreferencesManager
 import com.example.myandroidapp.theme.CryptoTraderTheme
 
 class MainActivity : ComponentActivity() {
+    private val diagnostics = DiagnosticsManager()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycle.addObserver(diagnostics)
         val securePreferencesManager = SecurePreferencesManager.getInstance(applicationContext)
         val shouldShowOnboarding = !securePreferencesManager.getBoolean(PREF_ONBOARDING_COMPLETE, false)
 
