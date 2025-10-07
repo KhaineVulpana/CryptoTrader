@@ -52,40 +52,6 @@ class EmaIndicator(period: Int) {
   fun update(x: Double): Double? = ema.update(x)
 }
 
-class SmaIndicator(private val period: Int) {
-  private val window = ArrayDeque<Double>(period)
-  private var sum = 0.0
-
-  fun update(x: Double): Double? {
-    window.addLast(x)
-    sum += x
-    if (window.size > period) {
-      sum -= window.removeFirst()
-    }
-    return if (window.size == period) sum / period else null
-  }
-}
-
-class WmaIndicator(private val period: Int) {
-  private val window = ArrayDeque<Double>(period)
-
-  fun update(x: Double): Double? {
-    window.addLast(x)
-    if (window.size > period) {
-      window.removeFirst()
-    }
-    if (window.size < period) return null
-    var weight = 1
-    var numerator = 0.0
-    window.forEach { value ->
-      numerator += value * weight
-      weight += 1
-    }
-    val denom = period * (period + 1) / 2.0
-    return numerator / denom
-  }
-}
-
 class RsiIndicator(private val period: Int) {
   private var prev: Double? = null
   private val avgGain = EwmAverage(alpha = 1.0 / period, warmup = period)
