@@ -1,5 +1,7 @@
 package com.kevin.cryptotrader.core.indicators
 
+import java.util.ArrayDeque
+
 data class Macd(val macd: Double, val signal: Double?, val hist: Double?)
 data class Bollinger(val middle: Double, val upper: Double, val lower: Double, val stddev: Double)
 data class Donchian(val upper: Double, val lower: Double, val middle: Double)
@@ -7,6 +9,40 @@ data class Donchian(val upper: Double, val lower: Double, val middle: Double)
 class EmaIndicator(period: Int) {
   private val ema = Ema(period)
   fun update(x: Double): Double? = ema.update(x)
+}
+
+class SmaIndicator(private val period: Int) {
+  private val window = ArrayDeque<Double>(period)
+  private var sum = 0.0
+
+  fun update(x: Double): Double? {
+    window.addLast(x)
+    sum += x
+    if (window.size > period) {
+      sum -= window.removeFirst()
+    }
+    return if (window.size == period) sum / period else null
+  }
+}
+
+class WmaIndicator(private val period: Int) {
+  private val window = ArrayDeque<Double>(period)
+
+  fun update(x: Double): Double? {
+    window.addLast(x)
+    if (window.size > period) {
+      window.removeFirst()
+    }
+    if (window.size < period) return null
+    var weight = 1
+    var numerator = 0.0
+    window.forEach { value ->
+      numerator += value * weight
+      weight += 1
+    }
+    val denom = period * (period + 1) / 2.0
+    return numerator / denom
+  }
 }
 
 class RsiIndicator(private val period: Int) {
@@ -100,5 +136,20 @@ class ZScore(private val period: Int) {
     val sd = stats.stddev() ?: return null
     if (sd == 0.0) return 0.0
     return (x - mean) / sd
+  }
+}
+
+class RocIndicator(private val period: Int) {
+  private val window = ArrayDeque<Double>(period + 1)
+
+  fun update(x: Double): Double? {
+    window.addLast(x)
+    if (window.size > period + 1) {
+      window.removeFirst()
+    }
+    if (window.size <= period) return null
+    val base = window.first()
+    if (base == 0.0) return 0.0
+    return (x - base) / base
   }
 }

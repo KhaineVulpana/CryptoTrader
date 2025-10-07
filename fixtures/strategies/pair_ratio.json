@@ -1,0 +1,41 @@
+{
+  "id": "strategy_pair_ratio",
+  "version": 1,
+  "interval": "H1",
+  "defaultSymbol": "BTCUSDT",
+  "inputs": [
+    {"symbol": "BTCUSDT", "csvPath": "fixtures/ohlcv/BTCUSDT_1h_sample.csv"},
+    {"symbol": "ETHUSDT", "csvPath": "fixtures/ohlcv/ETHUSDT_1h_sample.csv"}
+  ],
+  "series": [],
+  "rules": [
+    {
+      "id": "ratio_high",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "math", "op": "DIV", "left": {"type": "series", "name": "close:BTCUSDT"}, "right": {"type": "series", "name": "close:ETHUSDT"}},
+        "dir": "ABOVE",
+        "right": {"type": "const", "value": 16.0}
+      },
+      "actions": [
+        {"type": "emitSpread", "symbol": "BTCUSDT", "side": "SELL", "offsetPct": 0.4, "widthPct": 0.8, "kind": "pair", "metaStrings": {"hedge": "ETHUSDT"}},
+        {"type": "emitOrder", "symbol": "ETHUSDT", "side": "BUY", "kind": "pair", "price": {"type": "series", "name": "close:ETHUSDT"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.01"}}
+      ]
+    },
+    {
+      "id": "ratio_low",
+      "event": {"type": "candle", "symbol": "BTCUSDT"},
+      "guard": {
+        "type": "crosses",
+        "left": {"type": "math", "op": "DIV", "left": {"type": "series", "name": "close:BTCUSDT"}, "right": {"type": "series", "name": "close:ETHUSDT"}},
+        "dir": "BELOW",
+        "right": {"type": "const", "value": 14.0}
+      },
+      "actions": [
+        {"type": "emitSpread", "symbol": "BTCUSDT", "side": "BUY", "offsetPct": 0.4, "widthPct": 0.8, "kind": "pair", "metaStrings": {"hedge": "ETHUSDT"}},
+        {"type": "emitOrder", "symbol": "ETHUSDT", "side": "SELL", "kind": "pair", "price": {"type": "series", "name": "close:ETHUSDT"}, "metaStrings": {"risk.mode": "fixed_pct", "risk.pct": "0.01"}}
+      ]
+    }
+  ]
+}
