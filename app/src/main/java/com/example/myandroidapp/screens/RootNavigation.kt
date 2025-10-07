@@ -28,16 +28,16 @@ fun RootNavigation() {
             SmallTopAppBar(
                 title = {},
                 actions = {
-                    IconButton(onClick = { /* TODO: profile */ }) {
+                    IconButton(onClick = { viewModel.recordFeature("open_profile") }) {
                         Icon(Icons.Default.Person, contentDescription = "Profile")
                     }
-                    IconButton(onClick = { /* TODO: settings */ }) {
+                    IconButton(onClick = { viewModel.recordFeature("open_settings") }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
             )
         },
-        bottomBar = { RootBottomNavBar(navController) }
+        bottomBar = { RootBottomNavBar(navController, viewModel) }
     ) { padding ->
         NavHost(navController = navController, startDestination = "home", modifier = Modifier.padding(padding)) {
             composable("home") { HomeSection(viewModel) }
@@ -48,7 +48,7 @@ fun RootNavigation() {
 }
 
 @Composable
-fun RootBottomNavBar(navController: NavHostController) {
+fun RootBottomNavBar(navController: NavHostController, viewModel: SharedAppViewModel) {
     val items = listOf(
         "home" to Icons.Default.Home,
         "markets" to Icons.Default.BarChart,
@@ -61,7 +61,17 @@ fun RootBottomNavBar(navController: NavHostController) {
         items.forEach { (route, icon) ->
             NavigationBarItem(
                 selected = currentRoute == route,
-                onClick = { navController.navigate(route) },
+                onClick = {
+                    if (currentRoute != route) {
+                        viewModel.recordFeature(
+                            name = "navigate_$route",
+                            metadata = mapOf(
+                                "from" to (currentRoute ?: "none")
+                            )
+                        )
+                        navController.navigate(route)
+                    }
+                },
                 icon = { Icon(icon, contentDescription = route) },
                 label = { Text(route.replaceFirstChar { it.uppercase() }) }
             )
