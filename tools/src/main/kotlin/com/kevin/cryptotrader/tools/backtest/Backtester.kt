@@ -1,9 +1,13 @@
 package com.kevin.cryptotrader.tools.backtest
 
 import com.kevin.cryptotrader.contracts.AutomationDef
+import com.kevin.cryptotrader.contracts.BacktestSample
 import com.kevin.cryptotrader.contracts.Intent
+import com.kevin.cryptotrader.contracts.LivePipelineSample
+import com.kevin.cryptotrader.contracts.PipelineObserver
 import com.kevin.cryptotrader.contracts.PolicyConfig
 import com.kevin.cryptotrader.contracts.PolicyMode
+import com.kevin.cryptotrader.contracts.ResourceUsageSample
 import com.kevin.cryptotrader.contracts.RuntimeEnv
 import com.kevin.cryptotrader.core.policy.PolicyEngineImpl
 import com.kevin.cryptotrader.core.policy.RiskSizerImpl
@@ -12,6 +16,8 @@ import com.kevin.cryptotrader.paperbroker.PaperBrokerConfig
 import com.kevin.cryptotrader.paperbroker.PriceSource
 import com.kevin.cryptotrader.runtime.AutomationRuntimeImpl
 import com.kevin.cryptotrader.runtime.vm.InputLoader
+import kotlin.math.max
+import kotlin.system.measureNanoTime
 import com.kevin.cryptotrader.runtime.vm.ProgramJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +32,7 @@ data class BacktestConfig(
   val programJson: String,
   val priority: List<String> = emptyList(),
   val policyConfig: PolicyConfig? = null,
+  val observer: PipelineObserver = PipelineObserver.NOOP,
   val equityUsd: Double = 100_000.0,
 )
 
@@ -34,6 +41,12 @@ data class BacktestMetrics(
   var intents: Int = 0,
   var orders: Int = 0,
   var fills: Int = 0,
+  var totalSeriesUpdateMs: Double = 0.0,
+  var totalGuardEvaluationMs: Double = 0.0,
+  var totalPolicyMs: Double = 0.0,
+  var totalRiskMs: Double = 0.0,
+  var totalPlacementMs: Double = 0.0,
+  var peakHeapUsageBytes: Long = 0,
 )
 
 class Backtester(private val cfg: BacktestConfig) {
@@ -66,10 +79,30 @@ class Backtester(private val cfg: BacktestConfig) {
     )
 
     val metrics = BacktestMetrics()
+    val delegateObserver = cfg.observer
+    val observer = object : PipelineObserver {
+      override fun onBacktestSample(sample: BacktestSample) {
+        metrics.totalSeriesUpdateMs += sample.updateDurationMs
+        metrics.totalGuardEvaluationMs += sample.evaluationDurationMs
+        delegateObserver.onBacktestSample(sample)
+      }
+
+      override fun onLivePipelineSample(sample: LivePipelineSample) {
+        metrics.totalPolicyMs += sample.netDurationMs
+        metrics.totalRiskMs += sample.riskDurationMs
+        metrics.totalPlacementMs += sample.placementDurationMs
+        delegateObserver.onLivePipelineSample(sample)
+      }
+
+      override fun onResourceSample(sample: ResourceUsageSample) {
+        metrics.peakHeapUsageBytes = max(metrics.peakHeapUsageBytes, sample.heapUsedBytes)
+        delegateObserver.onResourceSample(sample)
+      }
+    }
     val rt = AutomationRuntimeImpl()
     rt.load(AutomationDef(id = "bt", version = 1, graphJson = cfg.programJson))
 
-    val intentsFlow = rt.run(RuntimeEnv(clockMs = { now }))
+    val intentsFlow = rt.run(RuntimeEnv(clockMs = { now }, observer = observer))
     val pendingIntents = mutableListOf<Intent>()
     val job = scope.launch {
       intentsFlow.collect { i -> pendingIntents.add(i) }
@@ -90,15 +123,32 @@ class Backtester(private val cfg: BacktestConfig) {
       // drain intents emitted for this bar
       if (pendingIntents.isNotEmpty()) {
         metrics.intents += pendingIntents.size
-        val plan = policy.net(pendingIntents.toList(), positions = emptyList())
-        val riskResult = sizer.size(
-          plan,
-          account = com.kevin.cryptotrader.contracts.AccountSnapshot(cfg.equityUsd, emptyMap()),
-        )
-        metrics.orders += riskResult.orders.size
-        for (o in riskResult.orders) {
-          scope.launch { broker.place(o) }
+        lateinit var plan: com.kevin.cryptotrader.contracts.NetPlan
+        val policyNs = measureNanoTime {
+          plan = policy.net(pendingIntents.toList(), positions = emptyList())
         }
+        val riskResult: com.kevin.cryptotrader.contracts.RiskResult
+        val riskNs = measureNanoTime {
+          riskResult = sizer.size(
+            plan,
+            account = com.kevin.cryptotrader.contracts.AccountSnapshot(0.0, emptyMap()),
+          )
+        }
+        metrics.orders += riskResult.orders.size
+        val placementNs = measureNanoTime {
+          for (o in riskResult.orders) {
+            scope.launch { broker.place(o) }
+          }
+        }
+        observer.onLivePipelineSample(
+          LivePipelineSample(
+            timestampMs = now,
+            intents = pendingIntents.size,
+            netDurationMs = policyNs.toDouble() / 1_000_000.0,
+            riskDurationMs = riskNs.toDouble() / 1_000_000.0,
+            placementDurationMs = placementNs.toDouble() / 1_000_000.0,
+          ),
+        )
         // Stop orders are emitted for analytics but not placed in the paper broker during backtests.
         pendingIntents.clear()
       }

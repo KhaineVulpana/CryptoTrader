@@ -1,5 +1,6 @@
 package com.kevin.cryptotrader.runtime.vm
 
+import com.kevin.cryptotrader.contracts.BacktestSample
 import com.kevin.cryptotrader.contracts.Intent
 import com.kevin.cryptotrader.contracts.Interval
 import com.kevin.cryptotrader.contracts.Side
