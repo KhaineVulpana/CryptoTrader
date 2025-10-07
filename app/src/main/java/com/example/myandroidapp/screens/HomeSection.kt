@@ -86,11 +86,17 @@ fun HomeMyStuff(nav: NavController, viewModel: SharedAppViewModel) {
             if (viewModel.savedAutomations.isEmpty()) {
                 item { Text("No saved items") }
             } else {
-                items(viewModel.savedAutomations) { rule ->
+                items(viewModel.savedAutomations) { automation ->
                     Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Column(Modifier.padding(16.dp)) {
-                            Text("Saved Rule", style = MaterialTheme.typography.titleSmall)
-                            Text(rule.filters.joinToString { it.metric })
+                            Text(automation.id, style = MaterialTheme.typography.titleSmall)
+                            Text("Version ${automation.version}", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(4.dp))
+                            Text("${automation.nodeCount} blocks", style = MaterialTheme.typography.bodySmall)
+                            if (automation.description.isNotBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(automation.description, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }

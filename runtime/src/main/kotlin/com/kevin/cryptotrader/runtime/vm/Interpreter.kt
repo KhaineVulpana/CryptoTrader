@@ -1,9 +1,10 @@
 package com.kevin.cryptotrader.runtime.vm
 
 import com.kevin.cryptotrader.contracts.Intent
-import com.kevin.cryptotrader.contracts.Side
 import com.kevin.cryptotrader.contracts.Interval
+import com.kevin.cryptotrader.contracts.Side
 import com.kevin.cryptotrader.core.indicators.EmaIndicator
+import com.kevin.cryptotrader.core.indicators.RsiIndicator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import java.io.File
@@ -39,16 +40,18 @@ class Interpreter(private val program: ProgramJson) {
   }
 
   private fun toIntent(action: ActionJson, sourceId: String): Intent {
+    val baseMeta = action.meta + mapOf("action.type" to action.type.name.lowercase())
+    val symbol = if (action.symbol.isBlank()) "GLOBAL" else action.symbol
     return Intent(
       id = "i-" + sourceId + "-" + System.identityHashCode(this),
       sourceId = sourceId,
       kind = action.kind,
-      symbol = action.symbol,
+      symbol = symbol,
       side = action.side,
       notionalUsd = null,
       qty = null,
       priceHint = null,
-      meta = emptyMap(),
+      meta = baseMeta,
     )
   }
 
@@ -66,7 +69,13 @@ class Interpreter(private val program: ProgramJson) {
 }
 
 private class SeriesEngines(seriesDefs: List<SeriesDefJson>) {
-  private data class Engine(val name: String, val type: SeriesType, val ema: EmaIndicator?, val source: SourceKey)
+  private data class Engine(
+    val name: String,
+    val type: SeriesType,
+    val ema: EmaIndicator? = null,
+    val rsi: RsiIndicator? = null,
+    val source: SourceKey,
+  )
   private val engines: List<Engine>
   private var last: InputBar? = null
   private val currentValues = HashMap<String, Double?>()
@@ -74,7 +83,9 @@ private class SeriesEngines(seriesDefs: List<SeriesDefJson>) {
   init {
     engines = seriesDefs.map { def ->
       when (def.type) {
-        SeriesType.EMA -> Engine(def.name, def.type, EmaIndicator(def.period ?: error("EMA requires period")), def.source)
+        SeriesType.EMA -> Engine(def.name, def.type, ema = EmaIndicator(def.period ?: error("EMA requires period")), source = def.source)
+        SeriesType.RSI -> Engine(def.name, def.type, rsi = RsiIndicator(def.period ?: 14), source = def.source)
+        SeriesType.CUSTOM -> Engine(def.name, def.type, source = def.source)
       }
     }
   }
@@ -91,6 +102,8 @@ private class SeriesEngines(seriesDefs: List<SeriesDefJson>) {
       }
       val v = when (e.type) {
         SeriesType.EMA -> e.ema!!.update(src)
+        SeriesType.RSI -> e.rsi!!.update(src)
+        SeriesType.CUSTOM -> null
       }
       currentValues[e.name] = v
     }

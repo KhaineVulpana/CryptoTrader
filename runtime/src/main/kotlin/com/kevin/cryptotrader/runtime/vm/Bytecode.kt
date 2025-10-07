@@ -25,10 +25,11 @@ data class SeriesDefJson(
   val type: SeriesType,
   val period: Int? = null,
   val source: SourceKey = SourceKey.CLOSE,
+  val meta: Map<String, String> = emptyMap(),
 )
 
 @Serializable
-enum class SeriesType { EMA }
+enum class SeriesType { EMA, RSI, CUSTOM }
 
 @Serializable
 enum class SourceKey { OPEN, HIGH, LOW, CLOSE, VOLUME }
@@ -41,6 +42,7 @@ data class RuleJson(
   val action: ActionJson,
   val quota: QuotaJson? = null,
   val delayMs: Long? = null,
+  val meta: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -77,11 +79,11 @@ data class ActionJson(
   val symbol: String,
   val side: Side,
   val kind: String = "signal",
+  val meta: Map<String, String> = emptyMap(),
 )
 
 @Serializable
-enum class ActionType { EMIT }
+enum class ActionType { EMIT, EMIT_SPREAD, LOG, NOTIFY, ABORT }
 
 @Serializable
 data class QuotaJson(val max: Int, val windowMs: Long)
-
