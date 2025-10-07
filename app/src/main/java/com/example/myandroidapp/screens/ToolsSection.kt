@@ -245,3 +245,135 @@ fun DiagnosticsTab(nav: NavController, viewModel: SharedAppViewModel) {
         }
     }
 }
+
+@Composable
+fun DiagnosticsTab(nav: NavController, viewModel: SharedAppViewModel) {
+    val consent = viewModel.telemetryConsent
+    val logs by TelemetryCenter.logHistory.collectAsState()
+    val health by TelemetryCenter.health.collectAsState()
+    val crashes by TelemetryCenter.crashes.collectAsState()
+    val anrs by TelemetryCenter.anrs.collectAsState()
+    val features by TelemetryCenter.features.collectAsState()
+    var exported by remember { mutableStateOf<String?>(null) }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        ToolTopTabs(nav, "Diagnostics", viewModel)
+        Spacer(Modifier.height(16.dp))
+        LazyColumn(Modifier.fillMaxSize()) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Usage analytics", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Collect anonymous feature usage when enabled.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(checked = consent.analyticsEnabled, onCheckedChange = { enabled ->
+                        viewModel.setAnalyticsOptIn(enabled)
+                    })
+                }
+            }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Crash & ANR reports", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Send crash diagnostics when opted in.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(checked = consent.crashReportsEnabled, onCheckedChange = { enabled ->
+                        viewModel.setCrashOptIn(enabled)
+                    })
+                }
+            }
+            item {
+                Button(onClick = {
+                    viewModel.recordFeature("export_diagnostics")
+                    exported = TelemetryCenter.exportDiagnosticsJson()
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Export diagnostics JSON")
+                }
+            }
+            if (exported != null) {
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Text("Export preview", style = MaterialTheme.typography.titleSmall)
+                }
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        SelectionContainer {
+                            Text(
+                                text = exported ?: "",
+                                modifier = Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                Spacer(Modifier.height(16.dp))
+                Text("Health probes", style = MaterialTheme.typography.titleMedium)
+            }
+            items(health.take(10)) { probe ->
+                Text(
+                    "${probe.module.name}/${probe.kind.name} (${probe.dimension ?: "global"}) → ${"%.2f".format(probe.value)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
+            }
+            item {
+                Spacer(Modifier.height(16.dp))
+                Text("Recent logs", style = MaterialTheme.typography.titleMedium)
+            }
+            items(logs.takeLast(10).asReversed()) { log ->
+                Text(
+                    "[${log.level}] ${log.message}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
+            }
+            if (crashes.isNotEmpty() || anrs.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Text("Stability", style = MaterialTheme.typography.titleMedium)
+                }
+                items(crashes.takeLast(5)) { crash ->
+                    Text(
+                        "Crash on ${crash.threadName}: ${crash.message}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+                items(anrs.takeLast(5)) { anr ->
+                    Text(
+                        "ANR ${anr.durationMs} ms — ${anr.message}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+            }
+            if (features.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Text("Feature usage", style = MaterialTheme.typography.titleMedium)
+                }
+                items(features.takeLast(5).asReversed()) { feature ->
+                    Text(
+                        "${feature.feature} ${feature.properties}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+            }
+        }
+    }
+}

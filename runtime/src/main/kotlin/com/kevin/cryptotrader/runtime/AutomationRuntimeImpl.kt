@@ -9,7 +9,6 @@ import com.kevin.cryptotrader.contracts.LogLevel
 import com.kevin.cryptotrader.contracts.TelemetryModule
 import com.kevin.cryptotrader.core.telemetry.TelemetryCenter
 import com.kevin.cryptotrader.runtime.vm.InputLoader
-import com.kevin.cryptotrader.runtime.vm.InputBar
 import com.kevin.cryptotrader.runtime.vm.Interpreter
 import com.kevin.cryptotrader.runtime.vm.ProgramJson
 import kotlinx.coroutines.flow.Flow
