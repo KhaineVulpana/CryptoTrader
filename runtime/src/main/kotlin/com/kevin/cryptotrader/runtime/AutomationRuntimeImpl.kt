@@ -36,8 +36,8 @@ class AutomationRuntimeImpl : AutomationRuntime {
         program.inputsCsvPath != null -> InputLoader.fromCsv(program.inputsCsvPath)
         else -> emptyList()
       }
-      val interp = Interpreter(program)
-      return interp.run(inputs)
+      val interp = Interpreter(program, env.observer)
+      return interp.run(inputs, env)
     }
   }
 }

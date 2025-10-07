@@ -1,40 +1,77 @@
 package com.kevin.cryptotrader.runtime.vm
 
+import com.kevin.cryptotrader.contracts.BacktestSample
 import com.kevin.cryptotrader.contracts.Intent
-import com.kevin.cryptotrader.contracts.Side
 import com.kevin.cryptotrader.contracts.Interval
+import com.kevin.cryptotrader.contracts.PipelineObserver
+import com.kevin.cryptotrader.contracts.ResourceUsageSample
+import com.kevin.cryptotrader.contracts.RuntimeEnv
+import com.kevin.cryptotrader.contracts.Side
 import com.kevin.cryptotrader.core.indicators.EmaIndicator
+import java.io.File
+import kotlin.math.max
+import kotlin.system.measureNanoTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import java.io.File
 
 data class InputBar(val ts: Long, val open: Double, val high: Double, val low: Double, val close: Double, val volume: Double)
 
 /** Build and run an interpreted program defined by ProgramJson */
-class Interpreter(private val program: ProgramJson) {
+class Interpreter(
+  private val program: ProgramJson,
+  private val observer: PipelineObserver = PipelineObserver.NOOP,
+) {
 
-  fun run(input: List<InputBar>): Flow<Intent> = flow {
+  private val compiledRules = program.rules.map { CompiledRule(it) }
+
+  fun run(input: List<InputBar>, env: RuntimeEnv): Flow<Intent> = flow {
     val seriesEngines = SeriesEngines(program.series)
     val ctx = RuntimeCtx(program.interval)
 
+    var barCounter = 0
     input.forEach { bar ->
-      seriesEngines.update(bar)
-      for (rule in program.rules) {
-        if (rule.oncePerBar && !ctx.allowOncePerBar(rule.id, bar.ts)) continue
+      lateinit var snapshot: SeriesSnapshot
+      val updateNs = measureNanoTime { snapshot = seriesEngines.update(bar) }
 
-        val guardPass = when (val g = rule.guard) {
-          is GuardJson.Threshold -> evalThreshold(g, seriesEngines)
-          is GuardJson.Crosses -> ctx.evalCrosses(g, seriesEngines)
-        }
+      var emittedForBar = 0
+      val evalNs = measureNanoTime {
+        for (rule in compiledRules) {
+          if (rule.oncePerBar && !ctx.allowOncePerBar(rule.id, bar.ts)) continue
 
-        val ready = ctx.updateTimerAndCheck(rule.id, bar.ts, rule.delayMs, guardPass)
-        val allowed = ready && ctx.quotaPrecheck(rule.id, bar.ts, rule.quota)
-        if (allowed) {
-          val out = toIntent(rule.action, rule.id)
-          emit(out)
-          ctx.recordEmit(rule.id, bar.ts, rule.quota)
+          val guardPass = rule.guard.evaluate(snapshot, ctx)
+          val ready = ctx.updateTimerAndCheck(rule.id, bar.ts, rule.delayMs, guardPass)
+          val allowed = ready && ctx.quotaPrecheck(rule.id, bar.ts, rule.quota)
+          if (allowed) {
+            val out = toIntent(rule.action, rule.id)
+            emit(out)
+            ctx.recordEmit(rule.id, bar.ts, rule.quota)
+            emittedForBar += 1
+          }
         }
       }
+
+      observer.onBacktestSample(
+        BacktestSample(
+          barTs = bar.ts,
+          updateDurationMs = updateNs.toDouble() / 1_000_000.0,
+          evaluationDurationMs = evalNs.toDouble() / 1_000_000.0,
+          emittedIntents = emittedForBar,
+        ),
+      )
+
+      if (barCounter % RESOURCE_SAMPLE_EVERY == 0) {
+        val runtime = Runtime.getRuntime()
+        val used = runtime.totalMemory() - runtime.freeMemory()
+        observer.onResourceSample(
+          ResourceUsageSample(
+            timestampMs = max(bar.ts, env.clockMs()),
+            heapUsedBytes = used,
+            heapMaxBytes = runtime.maxMemory(),
+          ),
+        )
+      }
+
+      barCounter += 1
     }
   }
 
@@ -52,43 +89,124 @@ class Interpreter(private val program: ProgramJson) {
     )
   }
 
-  private fun evalThreshold(t: GuardJson.Threshold, engines: SeriesEngines): Boolean {
-    val l = engines.resolve(t.left) ?: return false
-    val r = engines.resolve(t.right) ?: return false
-    return when (t.op) {
-      Op.GT -> l > r
-      Op.GTE -> l >= r
-      Op.LT -> l < r
-      Op.LTE -> l <= r
-      Op.EQ -> l == r
+  private inner class CompiledRule(rule: RuleJson) {
+    val id: String = rule.id
+    val oncePerBar: Boolean = rule.oncePerBar
+    val action: ActionJson = rule.action
+    val quota: QuotaJson? = rule.quota
+    val delayMs: Long? = rule.delayMs
+    val guard: GuardEvaluator = when (val g = rule.guard) {
+      is GuardJson.Threshold -> GuardEvaluator.ThresholdEvaluator(
+        resolveOperand(g.left),
+        g.op,
+        resolveOperand(g.right),
+      )
+      is GuardJson.Crosses -> GuardEvaluator.CrossEvaluator(
+        resolveOperand(g.left),
+        resolveOperand(g.right),
+        CrossCacheKey(rule.id, g),
+      )
     }
+  }
+
+  private fun resolveOperand(op: Operand): OperandResolver =
+    when (op) {
+      is Operand.Const -> OperandResolver.ConstOperand(op.value)
+      is Operand.Series -> OperandResolver.SeriesOperand(op.name)
+    }
+
+  private sealed interface GuardEvaluator {
+    fun evaluate(snapshot: SeriesSnapshot, ctx: RuntimeCtx): Boolean
+
+    class ThresholdEvaluator(
+      private val left: OperandResolver,
+      private val op: Op,
+      private val right: OperandResolver,
+    ) : GuardEvaluator {
+      override fun evaluate(snapshot: SeriesSnapshot, ctx: RuntimeCtx): Boolean {
+        val l = left.resolve(snapshot) ?: return false
+        val r = right.resolve(snapshot) ?: return false
+        return when (op) {
+          Op.GT -> l > r
+          Op.GTE -> l >= r
+          Op.LT -> l < r
+          Op.LTE -> l <= r
+          Op.EQ -> l == r
+        }
+      }
+    }
+
+    class CrossEvaluator(
+      private val left: OperandResolver,
+      private val right: OperandResolver,
+      private val cacheKey: CrossCacheKey,
+    ) : GuardEvaluator {
+      override fun evaluate(snapshot: SeriesSnapshot, ctx: RuntimeCtx): Boolean {
+        val l = left.resolve(snapshot) ?: return false
+        val r = right.resolve(snapshot) ?: return false
+        return ctx.evalCrosses(cacheKey, l, r)
+      }
+    }
+  }
+
+  private sealed interface OperandResolver {
+    fun resolve(snapshot: SeriesSnapshot): Double?
+
+    class ConstOperand(private val value: Double) : OperandResolver {
+      override fun resolve(snapshot: SeriesSnapshot): Double? = value
+    }
+
+    class SeriesOperand(private val name: String) : OperandResolver {
+      private var cachedVersion: Long = Long.MIN_VALUE
+      private var cachedValue: Double? = null
+
+      override fun resolve(snapshot: SeriesSnapshot): Double? {
+        if (cachedVersion != snapshot.version) {
+          cachedValue = snapshot.values[name]
+          cachedVersion = snapshot.version
+        }
+        return cachedValue
+      }
+    }
+  }
+
+  private companion object {
+    private const val RESOURCE_SAMPLE_EVERY = 128
   }
 }
 
+private data class CrossCacheKey(val ruleId: String, val guard: GuardJson.Crosses)
+
 private class SeriesEngines(seriesDefs: List<SeriesDefJson>) {
-  private data class Engine(val name: String, val type: SeriesType, val ema: EmaIndicator?, val source: SourceKey)
+  private data class Engine(
+    val name: String,
+    val type: SeriesType,
+    val ema: EmaIndicator?,
+    val extractor: (InputBar) -> Double,
+  )
+
   private val engines: List<Engine>
-  private var last: InputBar? = null
   private val currentValues = HashMap<String, Double?>()
+  private var version: Long = 0
 
   init {
     engines = seriesDefs.map { def ->
       when (def.type) {
-        SeriesType.EMA -> Engine(def.name, def.type, EmaIndicator(def.period ?: error("EMA requires period")), def.source)
+        SeriesType.EMA ->
+          Engine(
+            name = def.name,
+            type = def.type,
+            ema = EmaIndicator(def.period ?: error("EMA requires period")),
+            extractor = sourceExtractor(def.source),
+          )
       }
     }
   }
 
-  fun update(bar: InputBar) {
-    last = bar
+  fun update(bar: InputBar): SeriesSnapshot {
+    version += 1
     engines.forEach { e ->
-      val src = when (e.source) {
-        SourceKey.OPEN -> bar.open
-        SourceKey.HIGH -> bar.high
-        SourceKey.LOW -> bar.low
-        SourceKey.CLOSE -> bar.close
-        SourceKey.VOLUME -> bar.volume
-      }
+      val src = e.extractor(bar)
       val v = when (e.type) {
         SeriesType.EMA -> e.ema!!.update(src)
       }
@@ -100,19 +218,24 @@ private class SeriesEngines(seriesDefs: List<SeriesDefJson>) {
     currentValues["low"] = bar.low
     currentValues["close"] = bar.close
     currentValues["volume"] = bar.volume
+    return SeriesSnapshot(version = version, values = currentValues)
   }
 
-  fun value(name: String): Double? = currentValues[name]
-
-  fun resolve(op: Operand): Double? = when (op) {
-    is Operand.Const -> op.value
-    is Operand.Series -> value(op.name)
-  }
+  private fun sourceExtractor(source: SourceKey): (InputBar) -> Double =
+    when (source) {
+      SourceKey.OPEN -> { bar -> bar.open }
+      SourceKey.HIGH -> { bar -> bar.high }
+      SourceKey.LOW -> { bar -> bar.low }
+      SourceKey.CLOSE -> { bar -> bar.close }
+      SourceKey.VOLUME -> { bar -> bar.volume }
+    }
 }
+
+private data class SeriesSnapshot(val version: Long, val values: Map<String, Double?>)
 
 private class RuntimeCtx(private val interval: Interval) {
   private val lastBarByRule = HashMap<String, Long>()
-  private val lastPairs = HashMap<String, Pair<Double?, Double?>>() // key -> (prevLeft, prevRight)
+  private val lastPairs = HashMap<CrossCacheKey, Pair<Double, Double>>()
   private val pendingAt = HashMap<String, Long?>() // ruleId -> dueTs
   private val quota = HashMap<String, ArrayDeque<Long>>()
 
@@ -127,16 +250,13 @@ private class RuntimeCtx(private val interval: Interval) {
     }
   }
 
-  fun evalCrosses(c: GuardJson.Crosses, engines: SeriesEngines): Boolean {
-    val l = engines.resolve(c.left) ?: return false
-    val r = engines.resolve(c.right) ?: return false
-    val key = "${c.left}-${c.right}-${c.dir}"
-    val (prevL, prevR) = lastPairs.getOrPut(key) { Pair(null, null) }
-    val crossed = when (c.dir) {
-      CrossDir.ABOVE -> (prevL != null && prevR != null && prevL <= prevR && l > r)
-      CrossDir.BELOW -> (prevL != null && prevR != null && prevL >= prevR && l < r)
+  fun evalCrosses(key: CrossCacheKey, left: Double, right: Double): Boolean {
+    val (prevL, prevR) = lastPairs[key] ?: Pair(Double.NaN, Double.NaN)
+    val crossed = when (key.guard.dir) {
+      CrossDir.ABOVE -> !prevL.isNaN() && !prevR.isNaN() && prevL <= prevR && left > right
+      CrossDir.BELOW -> !prevL.isNaN() && !prevR.isNaN() && prevL >= prevR && left < right
     }
-    lastPairs[key] = Pair(l, r)
+    lastPairs[key] = left to right
     return crossed
   }
 
@@ -144,7 +264,7 @@ private class RuntimeCtx(private val interval: Interval) {
     val due = pendingAt[ruleId]
     if (guardPass) {
       if (delayMs == null || delayMs <= 0) return true
-      val newDue = (due ?: (ts + delayMs))
+      val newDue = due ?: (ts + delayMs)
       pendingAt[ruleId] = newDue
       if (ts >= newDue) {
         pendingAt.remove(ruleId)
