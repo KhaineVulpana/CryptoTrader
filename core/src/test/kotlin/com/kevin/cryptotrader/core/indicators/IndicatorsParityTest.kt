@@ -152,52 +152,53 @@ class IndicatorsParityTest {
 private object Naive {
   fun ema(period: Int): ObjectDoubleUpdate {
     val alpha = 2.0 / (period + 1.0)
-    val buf = ArrayList<Double>()
     var ema: Double? = null
+    var count = 0
     return ObjectDoubleUpdate { x ->
-      if (buf.size < period) {
-        buf.add(x)
-        if (buf.size == period) {
-          ema = buf.sum() / period
-        }
-        ema
+      ema = if (ema == null) {
+        x
       } else {
         val prev = ema!!
-        val next = (x - prev) * alpha + prev
-        ema = next
-        next
+        (x - prev) * alpha + prev
       }
+      count += 1
+      if (count >= period) ema else null
     }
   }
 
   fun rsi(period: Int): ObjectDoubleUpdate {
     var prev: Double? = null
-    val gains = ArrayList<Double>()
-    val losses = ArrayList<Double>()
+    val alpha = 1.0 / period
     var avgGain: Double? = null
     var avgLoss: Double? = null
+    var count = 0
     return ObjectDoubleUpdate { close ->
       val p = prev
+      if (p == null) {
+        prev = close
+        avgGain = 0.0
+        avgLoss = 0.0
+        count += 1
+        return@ObjectDoubleUpdate null
+      }
       prev = close
-      if (p == null) return@ObjectDoubleUpdate null
       val change = close - p
       val gain = if (change > 0) change else 0.0
       val loss = if (change < 0) -change else 0.0
-      if (avgGain == null) {
-        gains.add(gain)
-        losses.add(loss)
-        if (gains.size == period) {
-          avgGain = gains.sum() / period
-          avgLoss = losses.sum() / period
-        }
+      avgGain = if (avgGain == null) {
+        gain
       } else {
-        avgGain = ((avgGain!! * (period - 1)) + gain) / period
-        avgLoss = ((avgLoss!! * (period - 1)) + loss) / period
+        (gain - avgGain!!) * alpha + avgGain!!
       }
-
-      val g = avgGain
-      val l = avgLoss
-      if (g == null || l == null) return@ObjectDoubleUpdate null
+      avgLoss = if (avgLoss == null) {
+        loss
+      } else {
+        (loss - avgLoss!!) * alpha + avgLoss!!
+      }
+      count += 1
+      if (count < period) return@ObjectDoubleUpdate null
+      val g = avgGain ?: return@ObjectDoubleUpdate null
+      val l = avgLoss ?: return@ObjectDoubleUpdate null
       if (l == 0.0) return@ObjectDoubleUpdate 100.0
       val rs = g / l
       100.0 - (100.0 / (1.0 + rs))
@@ -209,8 +210,9 @@ private object Naive {
     val emaSlow = ema(slow)
     val sig = ema(signal)
     return ObjectDoubleUpdateMacd { x ->
-      val f = emaFast.update(x) ?: return@ObjectDoubleUpdateMacd null
-      val s = emaSlow.update(x) ?: return@ObjectDoubleUpdateMacd null
+      val f = emaFast.update(x)
+      val s = emaSlow.update(x)
+      if (f == null || s == null) return@ObjectDoubleUpdateMacd null
       val macd = f - s
       val signalVal = sig.update(macd)
       val hist = signalVal?.let { macd - it }
@@ -261,18 +263,22 @@ private object Naive {
     var prevClose: Double? = null
     val trs = ArrayList<Double>()
     var atr: Double? = null
+    var samples = 0
     return ObjectHLCUpdateDouble { h, l, c ->
       val tr = TrueRange.tr(h, l, prevClose)
       prevClose = c
-      if (atr == null) {
+      samples += 1
+      atr = if (atr == null) {
         trs.add(tr)
         if (trs.size == period) {
-          atr = trs.sum() / period
+          trs.sum() / period
+        } else {
+          null
         }
       } else {
-        atr = ((atr!! * (period - 1)) + tr) / period
+        ((atr!! * (period - 1)) + tr) / period
       }
-      atr
+      atr ?: if (samples < period) 0.0 else atr
     }
   }
 

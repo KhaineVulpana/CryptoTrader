@@ -15,24 +15,31 @@ class BacktesterTest {
         "id":"p1",
         "version":1,
         "interval":"H1",
-        "inputsCsvPath":"fixtures/ohlcv/BTCUSDT_1h_sample.csv",
+        "defaultSymbol":"BTCUSDT",
+        "inputs":[{"symbol":"BTCUSDT","csvPath":"fixtures/ohlcv/BTCUSDT_1h_sample.csv"}],
         "series":[
-          {"name":"ema12","type":"EMA","period":12,"source":"CLOSE"},
-          {"name":"ema26","type":"EMA","period":26,"source":"CLOSE"}
+          {"name":"ema12","type":"EMA","period":12,"source":"CLOSE","symbol":"BTCUSDT"},
+          {"name":"ema26","type":"EMA","period":26,"source":"CLOSE","symbol":"BTCUSDT"}
         ],
         "rules":[
           {
             "id":"long",
+            "event":{"type":"candle","symbol":"BTCUSDT"},
             "oncePerBar":true,
             "guard":{ "type":"crosses", "left":{"type":"series","name":"ema12"}, "dir":"ABOVE", "right":{"type":"series","name":"ema26"} },
-            "action":{ "type":"EMIT", "symbol":"BTCUSDT", "side":"BUY", "kind":"signal"},
+            "actions":[
+              { "type":"emitOrder", "symbol":"BTCUSDT", "side":"BUY", "kind":"signal", "metaStrings": {"risk.mode":"fixed_pct","risk.pct":"0.01"} }
+            ],
             "quota":{ "max": 100, "windowMs": 86400000 }
           },
           {
             "id":"short",
+            "event":{"type":"candle","symbol":"BTCUSDT"},
             "oncePerBar":true,
             "guard":{ "type":"crosses", "left":{"type":"series","name":"ema12"}, "dir":"BELOW", "right":{"type":"series","name":"ema26"} },
-            "action":{ "type":"EMIT", "symbol":"BTCUSDT", "side":"SELL", "kind":"signal"},
+            "actions":[
+              { "type":"emitOrder", "symbol":"BTCUSDT", "side":"SELL", "kind":"signal", "metaStrings": {"risk.mode":"fixed_pct","risk.pct":"0.01"} }
+            ],
             "quota":{ "max": 100, "windowMs": 86400000 }
           }
         ]

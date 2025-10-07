@@ -1,5 +1,8 @@
 package com.kevin.cryptotrader.live
 
+import com.kevin.cryptotrader.contracts.LogLevel
+import com.kevin.cryptotrader.contracts.TelemetryModule
+import com.kevin.cryptotrader.core.telemetry.TelemetryCenter
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -35,14 +38,49 @@ class HttpClientRestExecutor(
     private val json: Json = Json { ignoreUnknownKeys = true }
 ) : RestExecutor {
     override suspend fun execute(request: RestRequest): JsonObject {
-        val uri = buildUri(request)
-        val httpRequest = buildRequest(uri, request)
-        val response = client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString()).await()
-        if (response.statusCode() >= 400) {
-            throw RestException(response.statusCode(), response.body())
-        }
-        val element = json.parseToJsonElement(response.body())
-        return element.jsonObject
+        val start = System.nanoTime()
+        TelemetryCenter.logEvent(
+            module = TelemetryModule.LIVE_BROKER,
+            level = LogLevel.DEBUG,
+            message = "REST request",
+            fields = mapOf(
+                "method" to request.method,
+                "path" to request.path
+            )
+        )
+        return runCatching {
+            val uri = buildUri(request)
+            val httpRequest = buildRequest(uri, request)
+            val response = client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString()).await()
+            if (response.statusCode() >= 400) {
+                throw RestException(response.statusCode(), response.body())
+            }
+            val element = json.parseToJsonElement(response.body())
+            element.jsonObject
+        }.onSuccess {
+            val latencyMs = (System.nanoTime() - start) / 1_000_000.0
+            TelemetryCenter.logEvent(
+                module = TelemetryModule.LIVE_BROKER,
+                level = LogLevel.INFO,
+                message = "REST response",
+                fields = mapOf(
+                    "path" to request.path,
+                    "latencyMs" to "%.2f".format(latencyMs)
+                )
+            )
+        }.onFailure { throwable ->
+            val latencyMs = (System.nanoTime() - start) / 1_000_000.0
+            TelemetryCenter.logEvent(
+                module = TelemetryModule.LIVE_BROKER,
+                level = LogLevel.ERROR,
+                message = "REST failure",
+                fields = mapOf(
+                    "path" to request.path,
+                    "latencyMs" to "%.2f".format(latencyMs),
+                    "error" to (throwable.message ?: throwable::class.java.simpleName)
+                )
+            )
+        }.getOrThrow()
     }
 
     private fun buildUri(request: RestRequest): URI {

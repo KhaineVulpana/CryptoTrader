@@ -1,6 +1,7 @@
 package com.kevin.cryptotrader.persistence.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.kevin.cryptotrader.contracts.Intent
 import com.kevin.cryptotrader.contracts.Side
@@ -8,7 +9,13 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
-@Entity(tableName = "intents")
+@Entity(
+  tableName = "intents",
+  indices = [
+    Index(value = ["sourceId", "ts"]),
+    Index(value = ["accountId", "ts"]),
+  ],
+)
 data class IntentEntity(
   @PrimaryKey val id: String,
   val sourceId: String,

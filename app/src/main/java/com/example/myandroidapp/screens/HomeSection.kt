@@ -22,18 +22,23 @@ fun HomeSection(viewModel: SharedAppViewModel) {
     val nav = rememberNavController()
     NavHost(navController = nav, startDestination = "Portfolio") {
         composable("Overview") { HomeOverview(nav, viewModel) }
-        composable("Portfolio") { HomePortfolio(nav) }
+        composable("Portfolio") { HomePortfolio(nav, viewModel) }
         composable("My Stuff") { HomeMyStuff(nav, viewModel) }
     }
 }
 
 @Composable
-fun HomeTopTabs(nav: NavController, current: String) {
+fun HomeTopTabs(nav: NavController, current: String, viewModel: SharedAppViewModel) {
     TabRow(selectedTabIndex = homeTabs.indexOf(current)) {
         homeTabs.forEach { tab ->
             Tab(
                 selected = current == tab,
-                onClick = { nav.navigate(tab) },
+                onClick = {
+                    if (current != tab) {
+                        viewModel.recordFeature("home_tab_$tab", mapOf("from" to current))
+                        nav.navigate(tab)
+                    }
+                },
                 text = { Text(tab) }
             )
         }
@@ -43,7 +48,7 @@ fun HomeTopTabs(nav: NavController, current: String) {
 @Composable
 fun HomeOverview(nav: NavController, viewModel: SharedAppViewModel) {
     Column(Modifier.fillMaxSize()) {
-        HomeTopTabs(nav, "Overview")
+        HomeTopTabs(nav, "Overview", viewModel)
         LazyColumn(Modifier.fillMaxSize()) {
             item { Text("Overview content (market stats, charts, trending)", modifier = Modifier.padding(16.dp)) }
             item { PlaceholderChart() }
@@ -53,9 +58,9 @@ fun HomeOverview(nav: NavController, viewModel: SharedAppViewModel) {
 }
 
 @Composable
-fun HomePortfolio(nav: NavController) {
+fun HomePortfolio(nav: NavController, viewModel: SharedAppViewModel) {
     Column(Modifier.fillMaxSize()) {
-        HomeTopTabs(nav, "Portfolio")
+        HomeTopTabs(nav, "Portfolio", viewModel)
         LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -81,16 +86,22 @@ fun HomePortfolio(nav: NavController) {
 @Composable
 fun HomeMyStuff(nav: NavController, viewModel: SharedAppViewModel) {
     Column(Modifier.fillMaxSize()) {
-        HomeTopTabs(nav, "My Stuff")
+        HomeTopTabs(nav, "My Stuff", viewModel)
         LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
             if (viewModel.savedAutomations.isEmpty()) {
                 item { Text("No saved items") }
             } else {
-                items(viewModel.savedAutomations) { rule ->
+                items(viewModel.savedAutomations) { automation ->
                     Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Column(Modifier.padding(16.dp)) {
-                            Text("Saved Rule", style = MaterialTheme.typography.titleSmall)
-                            Text(rule.filters.joinToString { it.metric })
+                            Text(automation.id, style = MaterialTheme.typography.titleSmall)
+                            Text("Version ${automation.version}", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(4.dp))
+                            Text("${automation.nodeCount} blocks", style = MaterialTheme.typography.bodySmall)
+                            if (automation.description.isNotBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(automation.description, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }

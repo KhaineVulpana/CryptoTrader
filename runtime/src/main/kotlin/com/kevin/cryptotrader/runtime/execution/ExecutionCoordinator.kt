@@ -2,12 +2,16 @@ package com.kevin.cryptotrader.runtime.execution
 
 import com.kevin.cryptotrader.contracts.Broker
 import com.kevin.cryptotrader.contracts.Intent
+import com.kevin.cryptotrader.contracts.LivePipelineSample
+import com.kevin.cryptotrader.contracts.PipelineObserver
 import com.kevin.cryptotrader.contracts.PolicyEngine
 import com.kevin.cryptotrader.contracts.Position
+import com.kevin.cryptotrader.contracts.ResourceUsageSample
 import com.kevin.cryptotrader.contracts.RiskSizer
 import java.time.Clock
 import java.time.Duration
 import java.util.ArrayDeque
+import kotlin.system.measureNanoTime
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -17,7 +21,8 @@ class ExecutionCoordinator(
     private val riskSizer: RiskSizer,
     private val ledger: Ledger,
     private val clock: Clock = Clock.systemUTC(),
-    private val config: ExecutionConfig = ExecutionConfig()
+    private val config: ExecutionConfig = ExecutionConfig(),
+    private val observer: PipelineObserver = PipelineObserver.NOOP,
 ) {
     private val mutex = Mutex()
     private val processedIds = ArrayDeque<String>()
@@ -30,19 +35,37 @@ class ExecutionCoordinator(
         val now = clock.millis()
         ledger.append(LedgerEvent.IntentsRecorded(now, accepted))
 
-        val netPlan = policyEngine.net(accepted, positions)
+        lateinit var netPlan: com.kevin.cryptotrader.contracts.NetPlan
+        val netNs = measureNanoTime { netPlan = policyEngine.net(accepted, positions) }
         ledger.append(LedgerEvent.NetPlanReady(now, netPlan))
 
         val account = broker.account()
-        val riskResult = riskSizer.size(netPlan, account)
-        val orders = riskResult.orders
-        if (orders.isEmpty()) return
-        ledger.append(LedgerEvent.OrdersSized(now, orders))
-
-        for (order in orders) {
-            val brokerId = broker.place(order)
-            ledger.append(LedgerEvent.OrderRouted(clock.millis(), order, brokerId))
+        val riskResult: com.kevin.cryptotrader.contracts.RiskResult
+        val riskNs = measureNanoTime { riskResult = riskSizer.size(netPlan, account) }
+        val allOrders = riskResult.orders + riskResult.stopOrders
+        if (allOrders.isEmpty()) {
+            recordResourceUsage(now)
+            return
         }
+        ledger.append(LedgerEvent.OrdersSized(now, allOrders))
+
+        val placementNs = measureNanoTime {
+            for (order in allOrders) {
+                val brokerId = broker.place(order)
+                ledger.append(LedgerEvent.OrderRouted(clock.millis(), order, brokerId))
+            }
+        }
+
+        observer.onLivePipelineSample(
+            LivePipelineSample(
+                timestampMs = now,
+                intents = accepted.size,
+                netDurationMs = netNs.toDouble() / 1_000_000.0,
+                riskDurationMs = riskNs.toDouble() / 1_000_000.0,
+                placementDurationMs = placementNs.toDouble() / 1_000_000.0,
+            ),
+        )
+        recordResourceUsage(now)
     }
 
     private suspend fun filterIntents(intents: List<Intent>): List<Intent> = mutex.withLock {
@@ -77,4 +100,16 @@ class ExecutionCoordinator(
     }
 
     private fun Duration.toMillisSafe(): Long = if (this.isZero) 0L else this.toMillis()
+
+    private fun recordResourceUsage(ts: Long) {
+        val runtime = Runtime.getRuntime()
+        val used = runtime.totalMemory() - runtime.freeMemory()
+        observer.onResourceSample(
+            ResourceUsageSample(
+                timestampMs = ts,
+                heapUsedBytes = used,
+                heapMaxBytes = runtime.maxMemory(),
+            ),
+        )
+    }
 }
